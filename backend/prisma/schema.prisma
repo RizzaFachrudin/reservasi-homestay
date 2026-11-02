@@ -34,11 +34,13 @@ model Room {
   status        RoomStatus     @default(Available)
   createdAt     DateTime       @default(now()) @map("created_at") @db.Timestamp(0)
   updatedAt     DateTime       @updatedAt @map("updated_at") @db.Timestamp(0)
+  deletedAt     DateTime?      @map("deleted_at") @db.Timestamp(0)
 
   images        RoomImage[]
   facilities    FacilityRoom[]
   reservations  Reservation[]
 
+  @@index([deletedAt], name: "idx_rooms_deleted")
   @@map("rooms")
 }
 
