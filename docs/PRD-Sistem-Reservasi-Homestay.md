@@ -2,11 +2,13 @@
 
 | Item | Keterangan |
 | --- | --- |
-| Versi | 1.0 (draft siap coding) |
-| Tanggal | 27 Oktober 2026 |
+| Versi | 1.2 (draft siap coding; diselaraskan dengan SRS terbaru) |
+| Tanggal | 2 November 2026 |
 | Mata kuliah | Pengembangan Website Lanjut |
 | Dokumen acuan | SRS Bab 1–3 "Sistem Informasi Reservasi Homestay Berbasis Web" (17 System Feature) |
 | Cakupan | Satu pengelola homestay (single-tenant), bukan SaaS/marketplace multi-mitra |
+| Perubahan v1.1 | Landing page publik: beranda, pencarian, katalog, dan detail kamar dapat dibuka **tanpa login**; login baru diwajibkan saat booking (SF-6). Tidak ada dashboard terpisah untuk tamu. |
+| Perubahan v1.2 | Penghapusan kamar memakai *soft delete* (kolom `deleted_at` pada `rooms`) agar riwayat reservasi, invoice, dan laporan tetap utuh. |
 
 > **Cara membaca dokumen ini.** Semua yang ada di SRS dipertahankan apa adanya (diberi kode `SF-xx` sesuai nomor System Feature). Bagian yang belum diputuskan di SRS ditandai **[Rekomendasi]** (usulan teknis yang boleh diganti) atau **[Keputusan PRD]** (aturan bisnis yang saya tetapkan agar bisa langsung dikode; mohon dikonfirmasi). Daftar lengkapnya ada di bagian 15.
 
@@ -15,10 +17,10 @@
 ## 1. Ringkasan Produk
 
 ### 1.1 Latar belakang dan tujuan
-Pengelola homestay membutuhkan sistem untuk mendigitalkan proses pemesanan kamar: dari menelusuri kamar, mengecek ketersediaan, booking, pembayaran daring, sampai check-in dan check-out di lokasi. Produk ini adalah aplikasi web yang dipakai oleh dua aktor: **Tamu** dan **Admin (Pengelola/Pemilik)**.
+Pengelola homestay membutuhkan sistem untuk mendigitalkan proses pemesanan kamar: dari menelusuri kamar, mengecek ketersediaan, booking, pembayaran daring, sampai check-in dan check-out di lokasi. Produk ini adalah aplikasi web yang dipakai oleh dua kelompok pengguna: **Tamu** (termasuk Pengunjung yang belum login) dan **Admin (Pengelola/Pemilik)**.
 
 ### 1.2 Tujuan yang terukur
-1. Tamu dapat menyelesaikan alur *cari kamar → booking → bayar → dapat kode reservasi* tanpa bantuan admin.
+1. Pengunjung dapat melihat landing page, mencari kamar, dan melihat detail kamar **tanpa login**. Tamu dapat menyelesaikan alur *booking → bayar → dapat kode reservasi* tanpa bantuan admin; login baru diminta saat menekan **Pesan**.
 2. Status reservasi dan pembayaran berubah **otomatis** lewat webhook Payment Gateway (tanpa upload bukti manual).
 3. Admin dapat memvalidasi check-in dengan kode reservasi dan melihat laporan pendapatan bulanan.
 4. Seluruh 17 System Feature di SRS terimplementasi, termasuk 5 fitur wajib kelas: **Kamar, Fasilitas, Ketersediaan, Pemesanan, Check-in**.
@@ -27,11 +29,14 @@ Pengelola homestay membutuhkan sistem untuk mendigitalkan proses pemesanan kamar
 - Pembayaran tunai atau upload bukti transfer manual (sudah dihapus di SRS).
 - Banyak properti/mitra, komisi, payout, role Super Admin.
 - Aplikasi mobile native, notifikasi email/WhatsApp, review/rating, kode promo, pengembalian dana (refund).
+- Dashboard terpisah untuk tamu (cukup navbar yang menyesuaikan status login) dan situs pemasaran lengkap (blog, testimoni).
 - Transaksi uang sungguhan: tahap tugas ini memakai **sandbox** Payment Gateway.
 
 ### 1.4 Definisi singkat
 | Istilah | Arti |
 | --- | --- |
+| Pengunjung | Pengguna yang belum login; boleh membuka landing page, pencarian, katalog, dan detail kamar |
+| Tamu | Pengunjung yang sudah login (role `Guest`) |
 | Reservasi aktif | Reservasi berstatus `Pending`, `Confirmed`, atau `Checked-in` (memblokir kamar pada tanggalnya) |
 | Kode reservasi | `booking_code`, unik, ditampilkan sebagai tiket check-in |
 | Webhook | Panggilan HTTP dari Payment Gateway ke backend untuk mengabarkan status pembayaran |
@@ -69,10 +74,11 @@ Pengelola homestay membutuhkan sistem untuk mendigitalkan proses pemesanan kamar
 
 | Aktor | Boleh | Tidak boleh |
 | --- | --- | --- |
-| **Tamu (Guest)** | Registrasi, login, beranda, cari ketersediaan, katalog dan detail kamar, booking, bayar, riwayat dan tiket, unduh invoice **miliknya sendiri**, logout | Mengakses halaman/endpoint admin, melihat reservasi tamu lain |
+| **Pengunjung** (belum login) | Melihat landing page, mencari ketersediaan, melihat katalog dan detail kamar, registrasi, login | Booking, bayar, melihat riwayat dan invoice, mengakses halaman admin |
+| **Tamu (Guest)** | Semua yang bisa dilakukan Pengunjung, ditambah booking, bayar, riwayat dan tiket, unduh invoice **miliknya sendiri**, logout | Mengakses halaman/endpoint admin, melihat reservasi tamu lain |
 | **Admin** | Login, dashboard, CRUD kamar, CRUD fasilitas, galeri foto, monitoring reservasi, check-in/check-out, laporan pendapatan, logout | Mendaftar sendiri lewat form publik (akun admin disiapkan lewat *seeder*) |
 
-Catatan: sesuai SRS 3.3 dan 3.5, semua halaman tamu (beranda, katalog, pencarian) mensyaratkan **login**. Kalau tidak login, pengguna diarahkan ke halaman login.
+Catatan: sesuai SRS terbaru (SF-3, SF-4, SF-5), landing page, pencarian, katalog, dan detail kamar **terbuka untuk umum**. Login baru diwajibkan saat booking (SF-6) dan untuk semua fitur akun (pembayaran, riwayat, invoice). Tidak ada dashboard terpisah untuk tamu; navbar menyesuaikan status login.
 
 ---
 
@@ -91,6 +97,7 @@ Catatan: sesuai SRS 3.3 dan 3.5, semua halaman tamu (beranda, katalog, pencarian
 
 - Wajib ada: state *loading*, *empty*, dan *error* di setiap daftar dan form; pesan validasi dalam Bahasa Indonesia; dialog konfirmasi sebelum hapus.
 - Format uang `Rp 1.250.000`, tanggal `27 Okt 2026`.
+- Navbar punya dua keadaan: bila belum login tampil tombol **Masuk** dan **Daftar**; bila sudah login tampil nama tamu dengan menu **Riwayat Reservasi** dan **Keluar**.
 
 ---
 
@@ -98,10 +105,10 @@ Catatan: sesuai SRS 3.3 dan 3.5, semua halaman tamu (beranda, katalog, pencarian
 
 | Fitur wajib | System Feature | Isi singkat |
 | --- | --- | --- |
-| Kamar | SF-5, SF-12 | Katalog/detail kamar (tamu), CRUD kamar (admin) |
+| Kamar | SF-5, SF-12 | Katalog/detail kamar (publik), CRUD kamar (admin) |
 | Fasilitas | SF-13 | CRUD master fasilitas, relasi many-to-many ke kamar |
-| Ketersediaan | SF-4 | Pencarian berdasarkan tanggal + kalender ketersediaan |
-| Pemesanan | SF-6 (+SF-7, SF-15) | Booking, pembayaran, monitoring |
+| Ketersediaan | SF-4 | Pencarian berdasarkan tanggal + kalender ketersediaan (publik) |
+| Pemesanan | SF-6 (+SF-7, SF-15) | Booking (wajib login), pembayaran, monitoring |
 | Check-in | SF-16 | Validasi kode reservasi, check-in, check-out |
 
 ---
@@ -114,6 +121,7 @@ Catatan: sesuai SRS 3.3 dan 3.5, semua halaman tamu (beranda, katalog, pencarian
 - `rooms` M — N `facilities` (pivot `facility_room`)
 - `rooms` 1 — N `room_images`
 - `reservations` 1 — 1 `payments`
+- Catatan: tabel `rooms` memiliki kolom `deleted_at` untuk *soft delete* (lihat BR-12). Kolom ini satu-satunya tambahan terhadap ERD Chen yang telah disepakati.
 
 ### 6.2 Skema MySQL
 ```sql
@@ -136,7 +144,9 @@ CREATE TABLE rooms (
   capacity         TINYINT UNSIGNED NOT NULL,
   status           ENUM('Available','Maintenance') NOT NULL DEFAULT 'Available',
   created_at       TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at       TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+  updated_at       TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  deleted_at       TIMESTAMP NULL DEFAULT NULL,   -- soft delete: NULL = aktif, terisi = sudah dihapus
+  INDEX idx_rooms_deleted (deleted_at)
 );
 
 CREATE TABLE facilities (
@@ -178,7 +188,7 @@ CREATE TABLE reservations (
   created_at      TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at      TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   FOREIGN KEY (user_id) REFERENCES users(id),
-  FOREIGN KEY (room_id) REFERENCES rooms(id),   -- RESTRICT: kamar tidak bisa dihapus bila punya riwayat
+  FOREIGN KEY (room_id) REFERENCES rooms(id),   -- RESTRICT: baris kamar tidak dihapus keras, hanya soft delete (BR-12)
   INDEX idx_room_dates (room_id, check_in_date, check_out_date),
   INDEX idx_user (user_id),
   INDEX idx_status (status)
@@ -224,7 +234,7 @@ Pembayaran: Pending ──▶ Settlement | Expire | Cancel
 | --- | --- |
 | BR-01 | Tamu baru selalu berperan `Guest`. Akun `Admin` dibuat lewat seeder. Email harus unik. |
 | BR-02 | Validasi tanggal: `check_in_date` ≥ hari ini dan `check_out_date` > `check_in_date`. Jumlah malam = selisih hari. |
-| BR-03 | Kamar **tersedia** pada rentang tanggal bila: `status = 'Available'`, `capacity` ≥ jumlah tamu, dan tidak ada reservasi aktif yang bertabrakan. |
+| BR-03 | Kamar **tersedia** pada rentang tanggal bila: `status = 'Available'`, `deleted_at IS NULL`, `capacity` ≥ jumlah tamu, dan tidak ada reservasi aktif yang bertabrakan. |
 | BR-04 | Tabrakan tanggal: reservasi lain bertabrakan jika `lama.check_in < baru.check_out AND lama.check_out > baru.check_in`. Tanggal check-out boleh sama dengan check-in tamu berikutnya. |
 | BR-05 | `total_price = price_per_night × jumlah malam`, dihitung **di server**, bukan dipercaya dari klien. |
 | BR-06 | `booking_code` unik dan sulit ditebak, misalnya `HS-20261027-K7Q2` **[Rekomendasi format]**. Dipakai juga sebagai `order_id` ke Payment Gateway. |
@@ -233,12 +243,14 @@ Pembayaran: Pending ──▶ Settlement | Expire | Cancel
 | BR-09 | Webhook wajib diverifikasi keasliannya sebelum memproses (lihat 10.2). |
 | BR-10 | Check-in hanya bila: kode ditemukan, status `Confirmed`, pembayaran `Settlement`, dan tanggal hari ini = `check_in_date` **[Keputusan PRD: tanpa toleransi awal]**. |
 | BR-11 | Check-out hanya untuk reservasi `Checked-in`; hasilnya `Completed`. Karena ketersediaan dihitung per tanggal, `rooms.status` **tidak diubah** oleh check-out. |
-| BR-12 | Kamar tidak boleh dihapus bila punya reservasi aktif. Karena FK `RESTRICT`, kamar yang punya riwayat reservasi apa pun juga tidak bisa dihapus. Gunakan status `Maintenance` untuk menyembunyikannya. |
-| BR-13 | Kamar berstatus `Maintenance` tidak muncul di hasil pencarian dan tidak bisa dipesan. Halaman detailnya menampilkan pesan "kamar tidak tersedia" (SRS 3.5). |
+| BR-12 | **Penghapusan kamar = soft delete.** Tombol Hapus mengisi `rooms.deleted_at`; tidak ada baris yang benar-benar dihapus. Ditolak (409) bila kamar masih punya reservasi aktif (`Pending`, `Confirmed`, `Checked-in`). Kamar terhapus tidak tampil di katalog, pencarian, detail publik, dan daftar admin, tetapi riwayat reservasi, invoice, dan laporan tetap menampilkan nama kamarnya. Relasi fasilitas dan file foto dibiarkan (tidak dihapus). Karena itu FK `reservations.room_id` tidak pernah terpicu. |
+| BR-13 | Kamar berstatus `Maintenance` tidak muncul di hasil pencarian dan tidak bisa dipesan. Halaman detailnya menampilkan pesan "kamar tidak tersedia" (SRS 3.5). Kamar yang sudah dihapus (BR-12) diperlakukan sama: pesan "kamar tidak tersedia" (`GET /rooms/:id` → 404). |
 | BR-14 | Setiap kamar punya paling banyak satu foto utama (`is_primary = 1`). Foto pertama yang diunggah otomatis menjadi utama bila belum ada. |
 | BR-15 | Tamu hanya dapat melihat dan mengunduh invoice **reservasinya sendiri**. Invoice hanya tersedia bila pembayaran `Settlement`. |
 | BR-16 | Laporan bulanan menghitung reservasi dengan pembayaran `Settlement` **[Keputusan PRD: dikelompokkan berdasarkan bulan `check_in_date`]** karena skema belum punya kolom `paid_at`. |
 | BR-17 | Semua endpoint admin dilindungi middleware: token valid **dan** `role = 'Admin'`, jika tidak → 401/403. |
+| BR-18 | Halaman dan endpoint **publik** (landing page, daftar fasilitas, katalog, detail kamar, pencarian, kalender ketersediaan) tidak membutuhkan token. Katalog dan pencarian hanya menampilkan kamar `Available` yang belum dihapus (lihat BR-12 dan BR-13), dan respons publik tidak boleh memuat data tamu atau reservasi orang lain. |
+| BR-19 | **Gerbang login saat booking:** bila pengunjung belum login menekan **Pesan**, klien mengarahkan ke `/login?redirect=<URL booking>`. Setelah login atau registrasi berhasil, klien mengembalikan ke URL itu. URL booking memuat `room_id`, `check_in`, `check_out`, `guests` sebagai query, sehingga pilihan tidak hilang dan tidak perlu disimpan di server. Nilai `redirect` wajib divalidasi: hanya path internal yang diawali `/` (bukan `//` atau URL luar) untuk mencegah *open redirect*. |
 
 ---
 
@@ -248,31 +260,34 @@ Format: **Cerita pengguna → Kriteria penerimaan (AC)**. Skenario *normal* dan 
 
 ### SF-1 Registrasi Akun Tamu
 - Sebagai calon tamu, saya ingin membuat akun agar bisa memesan kamar.
-- **AC normal:** isi nama, email, nomor telepon, kata sandi → data valid dan email belum dipakai → akun `Guest` tersimpan (password di-hash) → diarahkan ke halaman login dengan pesan berhasil.
+- **AC normal:** isi nama, email, nomor telepon, kata sandi → data valid dan email belum dipakai → akun `Guest` tersimpan (password di-hash) → diarahkan ke halaman login dengan pesan berhasil (parameter `redirect` dibawa bila ada).
 - **AC gagal:** email sudah terdaftar atau format tidak valid → pesan kesalahan per kolom, form tampil kembali.
 - Validasi: nama wajib; email valid; telepon hanya angka dan opsional `+`; kata sandi minimal 8 karakter **[Rekomendasi]**.
 
 ### SF-2 Login (Tamu dan Admin)
-- **AC normal:** email dan kata sandi benar → server mengembalikan token dan data user → klien mengarahkan `Guest` ke beranda dan `Admin` ke `/admin`.
+- **AC normal:** email dan kata sandi benar → server mengembalikan token dan data user → klien mengarahkan `Guest` ke URL `redirect` bila ada (BR-19), jika tidak ke landing page, dan `Admin` ke `/admin`.
 - **AC gagal:** kredensial salah → pesan generik "email atau kata sandi salah" (jangan beda pesan untuk email vs sandi), form login tampil kembali.
 
-### SF-3 Beranda Tamu
-- **AC normal:** setelah login, tampil banner homestay, form pencarian (tanggal masuk, tanggal keluar, jumlah tamu), kamar unggulan, dan menu (Kamar, Riwayat, Keluar).
-- **AC gagal:** token hilang atau kedaluwarsa → diarahkan ke login.
+### SF-3 Landing Page Publik
+- **AC normal:** siapa pun dapat membuka `/` tanpa login; tampil banner homestay, form pencarian (tanggal masuk, tanggal keluar, jumlah tamu), kamar unggulan, dan fasilitas. Navbar: **Masuk** dan **Daftar** bila belum login; menu **Riwayat Reservasi** dan **Keluar** bila sudah login. Tidak ada dashboard terpisah untuk tamu.
+- **AC gagal:** data kamar unggulan atau fasilitas gagal dimuat (kesalahan koneksi atau server) → landing page tetap tampil tanpa daftar kamar unggulan, disertai pesan kesalahan dan tombol **Muat Ulang**.
 - Kamar unggulan **[Keputusan PRD]**: 3–6 kamar `Available` terbaru atau termurah.
 
-### SF-4 Pencarian dan Ketersediaan Kamar *(wajib)*
+### SF-4 Pencarian dan Ketersediaan Kamar *(wajib, publik)*
+- Dapat diakses **tanpa login** oleh Pengunjung maupun Tamu.
 - **AC normal:** isi tanggal dan jumlah tamu → validasi → daftar kamar tersedia (BR-03/04) dengan harga total untuk rentang itu.
 - **AC gagal 1:** check-out ≤ check-in atau tanggal lampau → pesan kesalahan tanggal.
 - **AC gagal 2:** tidak ada kamar cocok → pesan "kamar tidak tersedia" dan saran mengubah tanggal.
 - Kalender ketersediaan pada detail kamar menandai tanggal yang sudah terisi (reservasi aktif) per bulan.
 
-### SF-5 Katalog dan Detail Kamar *(wajib)*
+### SF-5 Katalog dan Detail Kamar *(wajib, publik)*
+- Dapat diakses **tanpa login** oleh Pengunjung maupun Tamu. Tombol **Pesan** selalu tampil; yang belum login diarahkan lewat gerbang login (SF-6, BR-19).
 - **AC normal:** katalog menampilkan kartu kamar (foto utama, nama, harga per malam, kapasitas). Detail menampilkan deskripsi, galeri foto, fasilitas, kalender ketersediaan, dan tombol **Pesan**.
-- **AC gagal:** kamar tidak ditemukan atau `Maintenance` → pesan "kamar tidak tersedia" dan kembali ke katalog.
+- **AC gagal:** kamar tidak ditemukan, sudah dihapus, atau `Maintenance` → pesan "kamar tidak tersedia" dan kembali ke katalog.
 
 ### SF-6 Pemesanan (Booking) *(wajib)*
 - **AC normal:** dari detail kamar → form pemesanan (tanggal, ringkasan biaya) → Konfirmasi → server cek ulang (BR-07), hitung total (BR-05), buat kode booking (BR-06), simpan reservasi `Pending` → arahkan ke halaman pembayaran.
+- **AC belum login:** pengunjung menekan **Pesan** tanpa login → diarahkan ke login atau registrasi dengan `redirect` (BR-19) → setelah berhasil, kembali ke form pemesanan dengan kamar dan tanggal yang sama, lalu lanjut seperti AC normal. `POST /reservations` tanpa token tetap ditolak (401).
 - **AC gagal:** kamar sudah diambil tamu lain saat konfirmasi → pesan "kamar tidak lagi tersedia" dan kembali ke pencarian. Tidak ada reservasi tersimpan.
 
 ### SF-7 Pembayaran Daring (Payment Gateway)
@@ -290,17 +305,17 @@ Format: **Cerita pengguna → Kriteria penerimaan (AC)**. Skenario *normal* dan 
 - **AC gagal:** pembayaran bukan `Settlement` → pesan "invoice belum tersedia" dan tautan ke pembayaran.
 
 ### SF-10 Logout
-- **AC normal:** pilih **Keluar** → token dihapus di klien → halaman login.
-- **AC gagal:** sesi sudah berakhir → tetap diarahkan ke login tanpa error.
+- **AC normal:** pilih **Keluar** → token dihapus di klien → landing page publik.
+- **AC gagal:** sesi sudah berakhir → tetap diarahkan ke landing page tanpa error.
 
 ### SF-11 Dashboard Admin
 - **AC normal:** tampil jumlah kamar, reservasi `Pending`, tamu check-in hari ini, tamu check-out hari ini, pendapatan bulan berjalan.
-- **AC gagal:** akun bukan Admin membuka URL admin → ditolak (403) dan diarahkan ke beranda.
+- **AC gagal:** akun bukan Admin membuka URL admin → ditolak (403) dan diarahkan ke landing page.
 
 ### SF-12 Kelola Data Kamar *(wajib)*
 - **AC tambah/ubah:** form (nama, deskripsi, harga per malam, kapasitas, status, pilihan fasilitas) → valid → simpan data dan relasi fasilitas.
-- **AC hapus:** konfirmasi → bila tidak ada reservasi (BR-12) → hapus kamar beserta relasi fasilitas dan foto (hapus file fisik juga).
-- **AC gagal:** data tidak lengkap, harga ≤ 0, atau kamar punya reservasi → pesan kesalahan, data lama tetap.
+- **AC hapus:** konfirmasi → bila tidak ada reservasi aktif (BR-12) → isi `deleted_at` (*soft delete*); kamar hilang dari katalog, pencarian, dan daftar admin, sedangkan riwayat, invoice, dan laporan tetap utuh. Relasi fasilitas dan file foto tidak dihapus.
+- **AC gagal:** data tidak lengkap, harga ≤ 0, atau kamar masih punya reservasi aktif saat dihapus → pesan kesalahan, data lama tetap.
 
 ### SF-13 Kelola Fasilitas *(wajib)*
 - **AC:** tambah, ubah, hapus fasilitas (nama, ikon). Menghapus fasilitas ikut melepas relasinya dari kamar (cascade pivot).
@@ -350,33 +365,38 @@ Format: **Cerita pengguna → Kriteria penerimaan (AC)**. Skenario *normal* dan 
 | --- | --- | --- | --- | --- |
 | POST | `/auth/register` | Publik | Daftar akun `Guest` | 1 |
 | POST | `/auth/login` | Publik | Login, kembalikan token + user | 2 |
-| GET | `/auth/me` | Login | Data user dari token | 3, 10 |
+| GET | `/auth/me` | Login | Data user dari token (untuk status navbar) | 3, 10 |
 
-### 9.2 Tamu
+### 9.2 Publik (tanpa login)
 | Method | Path | Akses | Keterangan | SF |
 | --- | --- | --- | --- | --- |
-| GET | `/rooms?featured=true` | Guest | Kamar unggulan untuk beranda | 3 |
-| GET | `/rooms` | Guest | Katalog kamar (foto utama, harga, kapasitas) | 5 |
-| GET | `/rooms/available?check_in=&check_out=&guests=` | Guest | Pencarian ketersediaan | 4 |
-| GET | `/rooms/:id` | Guest | Detail: deskripsi, foto, fasilitas | 5 |
-| GET | `/rooms/:id/availability?month=YYYY-MM` | Guest | Tanggal terisi untuk kalender | 4, 5 |
+| GET | `/rooms?featured=true` | Publik | Kamar unggulan untuk landing page | 3 |
+| GET | `/facilities` | Publik | Daftar fasilitas untuk landing page | 3 |
+| GET | `/rooms` | Publik | Katalog kamar (foto utama, harga, kapasitas) | 5 |
+| GET | `/rooms/available?check_in=&check_out=&guests=` | Publik | Pencarian ketersediaan | 4 |
+| GET | `/rooms/:id` | Publik | Detail: deskripsi, foto, fasilitas | 5 |
+| GET | `/rooms/:id/availability?month=YYYY-MM` | Publik | Tanggal terisi untuk kalender | 4, 5 |
+
+### 9.3 Tamu (wajib login)
+| Method | Path | Akses | Keterangan | SF |
+| --- | --- | --- | --- | --- |
 | POST | `/reservations` | Guest | Booking: `room_id`, `check_in_date`, `check_out_date` | 6 |
 | GET | `/reservations/me` | Guest | Riwayat reservasi milik sendiri | 8 |
 | GET | `/reservations/:id` | Guest (pemilik) | Detail + tiket + pembayaran | 8 |
 | POST | `/reservations/:id/pay` | Guest (pemilik) | Buat atau ambil ulang transaksi gateway (kembalikan token/URL bayar) | 7 |
 | GET | `/reservations/:id/invoice` | Guest (pemilik) | Unduh PDF (hanya bila `Settlement`) | 9 |
 
-### 9.3 Webhook
+### 9.4 Webhook
 | Method | Path | Akses | Keterangan | SF |
 | --- | --- | --- | --- | --- |
 | POST | `/payments/webhook` | Publik, diverifikasi | Terima notifikasi status dari gateway | 7 |
 
-### 9.4 Admin (semua di bawah `/admin`, wajib role Admin)
+### 9.5 Admin (semua di bawah `/admin`, wajib role Admin)
 | Method | Path | Keterangan | SF |
 | --- | --- | --- | --- |
 | GET | `/admin/dashboard` | Statistik ringkas | 11 |
 | GET / POST | `/admin/rooms` | Daftar / tambah kamar (termasuk `facility_ids[]`) | 12 |
-| GET / PUT / DELETE | `/admin/rooms/:id` | Detail / ubah / hapus kamar | 12 |
+| GET / PUT / DELETE | `/admin/rooms/:id` | Detail / ubah / hapus kamar (`DELETE` = *soft delete*, BR-12) | 12 |
 | GET / POST | `/admin/facilities` | Daftar / tambah fasilitas | 13 |
 | PUT / DELETE | `/admin/facilities/:id` | Ubah / hapus fasilitas | 13 |
 | POST | `/admin/rooms/:id/images` | Unggah banyak foto (`multipart/form-data`) | 14 |
@@ -389,7 +409,7 @@ Format: **Cerita pengguna → Kriteria penerimaan (AC)**. Skenario *normal* dan 
 | POST | `/admin/reservations/:id/check-out` | Ubah ke `Completed` | 16 |
 | GET | `/admin/reports/monthly?month=&year=` | Rekap bulanan | 17 |
 
-> Daftar fasilitas juga dibutuhkan form kamar di sisi admin, sehingga `GET /admin/facilities` cukup. Logout tidak butuh endpoint karena token dihapus di klien.
+> Daftar fasilitas juga dibutuhkan form kamar di sisi admin, sehingga `GET /admin/facilities` cukup; landing page memakai `GET /facilities` yang publik. Logout tidak butuh endpoint karena token dihapus di klien.
 
 ---
 
@@ -400,6 +420,7 @@ Format: **Cerita pengguna → Kriteria penerimaan (AC)**. Skenario *normal* dan 
 SELECT r.*
 FROM rooms r
 WHERE r.status = 'Available'
+  AND r.deleted_at IS NULL
   AND r.capacity >= :guests
   AND NOT EXISTS (
     SELECT 1 FROM reservations x
@@ -428,6 +449,8 @@ Dalam satu transaksi: kunci baris kamar → jalankan cek tabrakan → hitung tot
 - Semua query pakai parameter (ORM/prepared statement); validasi semua input di server.
 - CORS hanya untuk origin frontend. Batasi laju (rate limit) pada `/auth/login` dan `/auth/register`.
 - Otorisasi di level data: tamu hanya boleh membaca baris dengan `user_id` miliknya (jangan hanya sembunyikan tombol di UI).
+- Endpoint publik hanya mengembalikan data yang aman ditampilkan (BR-18); beri *rate limit* ringan pada pencarian karena terbuka untuk siapa pun.
+- Validasi parameter `redirect` (BR-19): terima hanya path internal berawalan `/`; tolak `//`, skema `http(s):`, dan karakter kontrol.
 - Kunci rahasia (JWT, server key gateway) hanya di `.env`, jangan di-commit.
 - Berkas unggahan: cek MIME dan ekstensi, ganti nama, simpan di folder khusus.
 
@@ -438,11 +461,11 @@ Dalam satu transaksi: kunci baris kamar → jalankan cek tabrakan → hitung tot
 ### 11.1 Rute
 | Rute | Akses | SF |
 | --- | --- | --- |
-| `/login`, `/register` | Publik | 1, 2 |
-| `/` (beranda) | Guest | 3 |
-| `/rooms`, `/rooms/:id` | Guest | 4, 5 |
-| `/search?check_in=&check_out=&guests=` | Guest | 4 |
-| `/booking/:roomId` | Guest | 6 |
+| `/` (landing page) | Publik | 3 |
+| `/rooms`, `/rooms/:id` | Publik | 4, 5 |
+| `/search?check_in=&check_out=&guests=` | Publik | 4 |
+| `/login`, `/register` (menerima `?redirect=`) | Publik | 1, 2 |
+| `/booking/:roomId?check_in=&check_out=&guests=` | Guest; bila belum login → `/login?redirect=<URL ini>` | 6 |
 | `/payment/:reservationId` | Guest | 7 |
 | `/reservations`, `/reservations/:id` | Guest | 8, 9 |
 | `/admin` | Admin | 11 |
@@ -453,10 +476,10 @@ Dalam satu transaksi: kunci baris kamar → jalankan cek tabrakan → hitung tot
 | `/admin/checkin` | Admin | 16 |
 | `/admin/reports` | Admin | 17 |
 
-Pakai komponen `ProtectedRoute` (cek token) dan `RoleRoute` (cek role). Tangani `401` secara global: hapus token lalu arahkan ke login.
+Rute publik **tidak** dibungkus proteksi. Pakai `ProtectedRoute` untuk rute Guest dan Admin (cek token; bila tidak ada → `/login?redirect=<path saat ini>`) dan `RoleRoute` (cek role). Tangani `401` secara global: hapus token lalu arahkan ke login dengan `redirect`. Navbar membaca status login dari `AuthContext` (token hilang → tampilan Masuk/Daftar).
 
 ### 11.2 Komponen inti **[Rekomendasi]**
-`Navbar`, `RoomCard`, `RoomGallery`, `FacilityBadge`, `DateRangePicker`, `AvailabilityCalendar`, `PriceSummary`, `StatusBadge`, `DataTable` (dengan paginasi), `ConfirmDialog`, `FormField`, `Toast`, `EmptyState`, `Skeleton`.
+`Navbar` (dua keadaan: belum/sudah login), `HeroBanner`, `SearchForm`, `RoomCard`, `RoomGallery`, `FacilityBadge`, `DateRangePicker`, `AvailabilityCalendar`, `PriceSummary`, `StatusBadge`, `DataTable` (dengan paginasi), `ConfirmDialog`, `FormField`, `Toast`, `EmptyState`, `Skeleton`.
 
 ---
 
@@ -480,7 +503,7 @@ homestay/
 │   └── .env.example
 └── frontend/
     ├── src/
-    │   ├── pages/           # guest/, admin/, auth/
+    │   ├── pages/           # public/, guest/, admin/, auth/
     │   ├── components/
     │   ├── layouts/         # GuestLayout, AdminLayout
     │   ├── context/         # AuthContext
@@ -530,10 +553,10 @@ UPLOAD_MAX_MB=2
 | Tahap | Isi | SF | Selesai bila |
 | --- | --- | --- | --- |
 | M0 | Setup repo, DB, migrasi, seeder admin, middleware error | – | Server dan frontend jalan, tabel terbentuk |
-| M1 | Registrasi, login, `me`, proteksi rute, logout | 1, 2, 10 | Dua role bisa masuk ke halaman masing-masing |
+| M1 | Registrasi, login (termasuk parameter `redirect`), `me`, proteksi rute, navbar dua keadaan, logout | 1, 2, 10 | Dua role masuk ke halaman masing-masing; navbar berubah sesuai status login |
 | M2 | CRUD fasilitas, CRUD kamar, galeri foto | 13, 12, 14 | Admin dapat menyiapkan data kamar lengkap |
-| M3 | Beranda, katalog, detail, pencarian, kalender | 3, 5, 4 | Tamu dapat mencari kamar sesuai tanggal |
-| M4 | Booking dengan transaksi dan kunci baris | 6 | Dua booking bersamaan tidak bisa bentrok |
+| M3 | Landing page publik, katalog, detail, pencarian, kalender (semua tanpa login) | 3, 5, 4 | Pengunjung dapat mencari dan melihat kamar tanpa akun |
+| M4 | Booking dengan gerbang login, transaksi, dan kunci baris | 6 | Pengunjung tanpa login diarahkan ke login lalu kembali ke booking; dua booking bersamaan tidak bisa bentrok |
 | M5 | Pembayaran sandbox, webhook, job kedaluwarsa | 7 | Status berubah otomatis di semua jalur (bayar, batal, expire) |
 | M6 | Riwayat, tiket, invoice PDF | 8, 9 | Tamu dapat mengunduh invoice setelah bayar |
 | M7 | Monitoring reservasi, check-in, check-out | 15, 16 | Alur kedatangan sampai kepulangan berjalan |
@@ -544,17 +567,17 @@ UPLOAD_MAX_MB=2
 | SF | Normal | Gagal |
 | --- | --- | --- |
 | 1 | Akun terbuat, masuk ke login | Email duplikat ditolak |
-| 2 | Tamu → beranda, Admin → dashboard | Sandi salah ditolak |
-| 3 | Beranda tampil lengkap | Tanpa token → login |
-| 4 | Hasil sesuai tanggal dan kapasitas | Tanggal salah, dan tidak ada kamar |
-| 5 | Detail lengkap (foto, fasilitas, kalender) | Kamar Maintenance ditolak |
-| 6 | Reservasi `Pending` + kode unik | Kamar sudah diambil → 409 |
+| 2 | Tamu → landing page (atau kembali ke booking bila ada `redirect`), Admin → dashboard | Sandi salah ditolak |
+| 3 | Landing page tampil lengkap tanpa login; navbar sesuai status login | Data gagal dimuat → pesan dan tombol Muat Ulang |
+| 4 | Hasil sesuai tanggal dan kapasitas, tanpa login | Tanggal salah, dan tidak ada kamar |
+| 5 | Detail lengkap (foto, fasilitas, kalender), tanpa login | Kamar Maintenance ditolak |
+| 6 | Reservasi `Pending` + kode unik; pengunjung tanpa login diarahkan ke login lalu kembali ke booking dengan pilihan yang sama | Kamar sudah diambil → 409; `POST /reservations` tanpa token → 401 |
 | 7 | Settlement → `Confirmed` | Cancel/Expire → `Cancelled`, kamar bebas |
 | 8 | Riwayat dan tiket tampil | Belum ada reservasi → pesan kosong |
 | 9 | PDF terunduh | Belum bayar → ditolak |
-| 10 | Keluar → login | Sesi habis → login |
+| 10 | Keluar → landing page | Sesi habis → landing page |
 | 11 | Statistik tampil | Tamu buka URL admin → 403 |
-| 12 | Tambah, ubah, hapus kamar | Data salah, atau kamar beriwayat tidak terhapus |
+| 12 | Tambah, ubah, hapus kamar (soft delete: hilang dari katalog dan daftar admin, riwayat dan invoice tetap utuh) | Data salah, atau kamar dengan reservasi aktif ditolak dihapus |
 | 13 | CRUD fasilitas | Nama kosong/duplikat |
 | 14 | Multi-upload, foto utama, hapus | Berkas bukan gambar/terlalu besar |
 | 15 | Daftar, filter, detail | Filter kosong → pesan |
@@ -577,6 +600,9 @@ Endpoint dan halaman jalan; skenario normal **dan** gagal lulus; validasi di ser
 7. **Gateway:** pilih satu (Midtrans atau Xendit) sebelum M5; detail verifikasi webhook harus dicek ke dokumentasi resmi.
 8. **Autentikasi token (JWT):** SRS menyebut "sesi login" secara umum; implementasi di sini berbasis token tanpa sesi server.
 9. **Pustaka PDF, ORM, dan struktur folder** hanyalah rekomendasi, bukan keharusan SRS.
+10. **Pencarian publik tanpa login** membuka data ketersediaan ke siapa saja. Ini sengaja (SRS SF-4), dan risikonya dibatasi dengan BR-18 serta *rate limit*.
+11. **Pengembalian ke booking setelah login** memakai parameter URL `redirect` (BR-19), bukan penyimpanan di server. Cukup untuk tugas ini; jika ingin lebih aman, simpan pilihan di `sessionStorage` klien.
+12. **Soft delete kamar** menambah kolom `deleted_at` pada tabel `rooms` (satu-satunya perubahan terhadap ERD yang telah disepakati; disetujui). Laporan dan invoice tetap menampilkan nama kamar yang sudah dihapus.
 
 ---
 
@@ -586,14 +612,14 @@ Endpoint dan halaman jalan; skenario normal **dan** gagal lulus; validasi di ser
 | --- | --- | --- | --- | --- |
 | 1 | Registrasi Akun Tamu | §8 SF-1 | `POST /auth/register` | `/register` |
 | 2 | Login (Tamu dan Admin) | §8 SF-2 | `POST /auth/login` | `/login` |
-| 3 | Beranda | §8 SF-3 | `GET /rooms?featured=true` | `/` |
-| 4 | Pencarian dan Ketersediaan | §8 SF-4, §10.1 | `GET /rooms/available`, `/rooms/:id/availability` | `/search`, kalender |
-| 5 | Katalog dan Detail Kamar | §8 SF-5 | `GET /rooms`, `/rooms/:id` | `/rooms`, `/rooms/:id` |
-| 6 | Pemesanan | §8 SF-6, §10.3 | `POST /reservations` | `/booking/:roomId` |
+| 3 | Landing Page Publik | §8 SF-3, BR-18 | `GET /rooms?featured=true`, `GET /facilities` (publik) | `/` |
+| 4 | Pencarian dan Ketersediaan (publik) | §8 SF-4, §10.1 | `GET /rooms/available`, `/rooms/:id/availability` | `/search`, kalender |
+| 5 | Katalog dan Detail Kamar (publik) | §8 SF-5 | `GET /rooms`, `/rooms/:id` | `/rooms`, `/rooms/:id` |
+| 6 | Pemesanan | §8 SF-6, §10.3, BR-19 | `POST /reservations` | `/booking/:roomId` |
 | 7 | Pembayaran Daring | §8 SF-7, §10.2 | `POST /reservations/:id/pay`, `POST /payments/webhook` | `/payment/:id` |
 | 8 | Riwayat dan Tiket | §8 SF-8 | `GET /reservations/me`, `/reservations/:id` | `/reservations` |
 | 9 | Invoice PDF | §8 SF-9 | `GET /reservations/:id/invoice` | detail reservasi |
-| 10 | Logout | §8 SF-10 | (sisi klien) | navbar |
+| 10 | Logout | §8 SF-10 | (sisi klien) | navbar → landing page |
 | 11 | Dashboard Admin | §8 SF-11 | `GET /admin/dashboard` | `/admin` |
 | 12 | CRUD Kamar | §8 SF-12 | `/admin/rooms` | `/admin/rooms*` |
 | 13 | CRUD Fasilitas | §8 SF-13 | `/admin/facilities` | `/admin/facilities` |
