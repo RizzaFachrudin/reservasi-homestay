@@ -10,7 +10,7 @@ if (!fs.existsSync(uploadDir)) {
 
 // Configure storage
 const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
+  destination: (_req, file, cb) => {
     const folder = file.fieldname === 'avatar' ? 'avatars' : 'rooms';
     const destination = path.join(uploadDir, folder);
 
@@ -20,7 +20,7 @@ const storage = multer.diskStorage({
 
     cb(null, destination);
   },
-  filename: (req, file, cb) => {
+  filename: (_req, file, cb) => {
     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
     const ext = path.extname(file.originalname);
     cb(null, `${file.fieldname}-${uniqueSuffix}${ext}`);
@@ -28,7 +28,7 @@ const storage = multer.diskStorage({
 });
 
 // File filter
-const fileFilter = (req: Express.Request, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
+const fileFilter = (_req: Express.Request, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
   const allowedMimes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
 
   if (allowedMimes.includes(file.mimetype)) {

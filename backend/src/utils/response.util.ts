@@ -1,20 +1,18 @@
-import { Response } from 'express';
-
-interface SuccessResponse<T = any> {
+export interface SuccessResponse<T = any> {
   success: true;
   message: string;
   data?: T;
   meta?: any;
 }
 
-interface ErrorResponse {
+export interface ErrorResponse {
   success: false;
   message: string;
   errors?: any;
 }
 
 export const sendSuccess = <T>(
-  res: Response,
+  res: any,
   message: string,
   data?: T,
   statusCode: number = 200,
@@ -30,7 +28,7 @@ export const sendSuccess = <T>(
 };
 
 export const sendError = (
-  res: Response,
+  res: any,
   message: string,
   statusCode: number = 500,
   errors?: any
@@ -42,3 +40,15 @@ export const sendError = (
   };
   res.status(statusCode).json(response);
 };
+
+export const formatSuccessResponse = <T>(data: T, message: string): SuccessResponse<T> => ({
+  success: true,
+  message,
+  data
+});
+
+export const formatErrorResponse = (message: string, errors?: any): ErrorResponse => ({
+  success: false,
+  message,
+  errors
+});
