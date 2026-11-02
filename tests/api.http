@@ -1,0 +1,40 @@
+@baseUrl = http://localhost:5000/api
+
+### 1. Health Check
+GET http://localhost:5000/health
+
+### 2. Register User
+POST {{baseUrl}}/auth/register
+Content-Type: application/json
+
+{
+    "name": "Testing User",
+    "email": "testing@example.com",
+    "password": "password123",
+    "phone": "081234567890"
+}
+
+### 3. Login User
+# @name login
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+    "email": "testing@example.com",
+    "password": "password123"
+}
+
+### 4. Get Profile (Protected)
+@token = {{login.response.body.data.token}}
+GET {{baseUrl}}/auth/me
+Authorization: Bearer {{token}}
+
+### 5. Login Admin
+# @name loginAdmin
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+    "email": "admin@homestay.com",
+    "password": "admin123"
+}
