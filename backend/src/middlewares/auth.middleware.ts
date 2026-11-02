@@ -7,6 +7,8 @@ interface JwtPayload {
   role: string;
 }
 
+export type { JwtPayload };
+
 declare global {
   namespace Express {
     interface Request {
