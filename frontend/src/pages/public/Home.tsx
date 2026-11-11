@@ -1,6 +1,42 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
+import {
+  Wifi, Wind, Tv, Bath, Coffee, Car, Search, CalendarCheck, CreditCard, KeyRound,
+  Users, ArrowRight, Star,
+} from 'lucide-react';
 import GuestLayout from '../../layouts/GuestLayout';
+
+// Data statis sementara; akan diganti API GET /rooms?featured=true dan /facilities (M2/M3).
+const featuredRooms = [
+  { id: 1, name: 'Kamar Double Cozy', price: 350000, capacity: 2, image: '/images/room-1.jpg' },
+  { id: 2, name: 'Kamar Keluarga', price: 550000, capacity: 4, image: '/images/room-2.jpg' },
+  { id: 3, name: 'Deluxe dengan Balkon', price: 650000, capacity: 3, image: '/images/room-3.jpg' },
+];
+
+const facilities = [
+  { icon: Wifi, label: 'WiFi Cepat' },
+  { icon: Wind, label: 'AC' },
+  { icon: Tv, label: 'TV' },
+  { icon: Bath, label: 'Kamar Mandi Dalam' },
+  { icon: Coffee, label: 'Sarapan' },
+  { icon: Car, label: 'Parkir Gratis' },
+];
+
+const steps = [
+  { icon: Search, title: 'Cari Kamar', desc: 'Pilih tanggal dan jumlah tamu, lihat kamar yang tersedia.' },
+  { icon: CalendarCheck, title: 'Pesan', desc: 'Pilih kamar favorit lalu konfirmasi pemesanan Anda.' },
+  { icon: CreditCard, title: 'Bayar Online', desc: 'Bayar aman lewat payment gateway, status otomatis.' },
+  { icon: KeyRound, title: 'Check-in', desc: 'Tunjukkan kode reservasi saat tiba di lokasi.' },
+];
+
+const gallery = [
+  '/images/gallery-1.jpg',
+  '/images/gallery-2.jpg',
+  '/images/gallery-3.jpg',
+  '/images/gallery-4.jpg',
+];
+
+const formatRupiah = (n: number) => `Rp ${n.toLocaleString('id-ID')}`;
 
 const Home: React.FC = () => {
   const navigate = useNavigate();
@@ -10,157 +46,200 @@ const Home: React.FC = () => {
   const [guestCount, setGuestCount] = useState(1);
   const [error, setError] = useState('');
 
-  // Get today's date in YYYY-MM-DD format for min attribute
   const today = new Date().toISOString().split('T')[0];
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
 
-    // Validation
     if (!checkInDate || !checkOutDate) {
       setError('Tanggal check-in dan check-out harus diisi');
       return;
     }
-
-    const checkIn = new Date(checkInDate);
-    const checkOut = new Date(checkOutDate);
-
-    if (checkOut <= checkIn) {
+    if (new Date(checkOutDate) <= new Date(checkInDate)) {
       setError('Tanggal check-out harus setelah check-in');
       return;
     }
-
-    if (guestCount < 1) {
+    if (!guestCount || guestCount < 1) {
       setError('Jumlah tamu minimal 1 orang');
       return;
     }
 
-    // Navigate to rooms page with search params (standardized to snake_case per PRD BR-19 & §9.2)
     const params = new URLSearchParams({
       check_in: checkInDate,
       check_out: checkOutDate,
-      guests: guestCount.toString()
+      guests: guestCount.toString(),
     });
-
     navigate(`/rooms?${params.toString()}`);
   };
 
+  const inputClass =
+    'w-full bg-transparent text-ink text-sm font-medium focus:outline-none';
+
   return (
-    <GuestLayout>
-      {/* Hero Section */}
-      <div className="relative bg-gradient-to-br from-sage/10 to-wood/10 rounded-2xl overflow-hidden mb-12">
-        <div className="relative z-10 px-8 py-16 md:py-24 text-center">
-          <h1 className="text-4xl md:text-5xl font-bold text-wood mb-4">
-            Temukan Homestay Impian Anda
-          </h1>
-          <p className="text-lg text-ink/80 max-w-2xl mx-auto mb-8">
-            Nikmati pengalaman menginap yang nyaman dan berkesan di homestay pilihan kami
-          </p>
+    <GuestLayout fullWidth>
+      {/* Hero */}
+      <section className="relative">
+        <div
+          className="h-[560px] md:h-[640px] bg-cover bg-center bg-wood"
+          style={{ backgroundImage: "url('/images/hero.jpg')" }}
+        >
+          <div className="absolute inset-0 bg-gradient-to-b from-ink/60 via-ink/30 to-ink/70" />
+          <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-full flex flex-col justify-center pb-24">
+            <span className="inline-flex items-center gap-1 self-start bg-white/15 backdrop-blur text-white text-xs font-medium px-3 py-1 rounded-full mb-5">
+              <Star size={14} className="text-yellow-300" /> Penginapan hangat bernuansa lokal
+            </span>
+            <h1 className="font-serif text-4xl md:text-6xl font-bold text-white max-w-2xl leading-tight">
+              Menginap nyaman, seperti pulang ke rumah
+            </h1>
+            <p className="mt-4 text-white/85 max-w-xl md:text-lg">
+              Temukan kamar terbaik di homestay kami, pesan dalam hitungan menit, dan nikmati suasana asri yang menenangkan.
+            </p>
+          </div>
+        </div>
 
-          {/* Search Form */}
-          <div className="max-w-4xl mx-auto bg-white rounded-xl shadow-lg p-6">
+        {/* Floating search card */}
+        <div className="relative max-w-5xl mx-auto px-4 -mt-16 md:-mt-14 z-10">
+          <form
+            onSubmit={handleSearch}
+            className="bg-white rounded-3xl shadow-xl p-4 md:p-5 grid grid-cols-1 md:grid-cols-[1fr_1fr_0.7fr_auto] gap-3 items-stretch"
+          >
+            <label className="bg-cream rounded-2xl px-4 py-3 block cursor-pointer">
+              <span className="block text-xs text-wood font-semibold mb-1">Check-in</span>
+              <input type="date" value={checkInDate} min={today} required
+                onChange={(e) => setCheckInDate(e.target.value)} className={inputClass} />
+            </label>
+            <label className="bg-cream rounded-2xl px-4 py-3 block cursor-pointer">
+              <span className="block text-xs text-wood font-semibold mb-1">Check-out</span>
+              <input type="date" value={checkOutDate} min={checkInDate || today} required
+                onChange={(e) => setCheckOutDate(e.target.value)} className={inputClass} />
+            </label>
+            <label className="bg-cream rounded-2xl px-4 py-3 block cursor-pointer">
+              <span className="block text-xs text-wood font-semibold mb-1">Jumlah Tamu</span>
+              <input type="number" value={Number.isNaN(guestCount) ? '' : guestCount} min={1} max={10} required
+                onChange={(e) => setGuestCount(parseInt(e.target.value))} className={inputClass} />
+            </label>
+            <button
+              type="submit"
+              className="flex items-center justify-center gap-2 bg-sage-dark hover:bg-wood text-white font-semibold rounded-2xl px-8 py-4 transition"
+            >
+              <Search size={18} /> Cari
+            </button>
             {error && (
-              <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
-                {error}
-              </div>
+              <p className="md:col-span-4 text-sm text-red-600 px-2">{error}</p>
             )}
+          </form>
+        </div>
+      </section>
 
-            <form onSubmit={handleSearch} className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {/* Check-in Date */}
-                <div className="text-left">
-                  <label htmlFor="checkIn" className="block text-sm font-medium text-ink mb-2">
-                    Check-in
-                  </label>
-                  <input
-                    id="checkIn"
-                    type="date"
-                    value={checkInDate}
-                    onChange={(e) => setCheckInDate(e.target.value)}
-                    min={today}
-                    required
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sage"
-                  />
-                </div>
-
-                {/* Check-out Date */}
-                <div className="text-left">
-                  <label htmlFor="checkOut" className="block text-sm font-medium text-ink mb-2">
-                    Check-out
-                  </label>
-                  <input
-                    id="checkOut"
-                    type="date"
-                    value={checkOutDate}
-                    onChange={(e) => setCheckOutDate(e.target.value)}
-                    min={checkInDate || today}
-                    required
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sage"
-                  />
-                </div>
-
-                {/* Guest Count */}
-                <div className="text-left">
-                  <label htmlFor="guests" className="block text-sm font-medium text-ink mb-2">
-                    Jumlah Tamu
-                  </label>
-                  <input
-                    id="guests"
-                    type="number"
-                    value={guestCount}
-                    onChange={(e) => setGuestCount(parseInt(e.target.value))}
-                    min={1}
-                    max={10}
-                    required
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sage"
-                  />
+      {/* Kamar unggulan */}
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-20">
+        <div className="flex items-end justify-between mb-8">
+          <div>
+            <p className="text-sage-dark text-sm font-semibold uppercase tracking-wider">Pilihan kami</p>
+            <h2 className="font-serif text-3xl md:text-4xl font-bold text-wood mt-1">Kamar Unggulan</h2>
+          </div>
+          <Link to="/rooms" className="hidden sm:inline-flex items-center gap-1 text-sm font-semibold text-wood hover:text-sage-dark transition">
+            Lihat semua <ArrowRight size={16} />
+          </Link>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {featuredRooms.map((room) => (
+            <Link
+              key={room.id}
+              to="/rooms"
+              className="group bg-white rounded-3xl overflow-hidden shadow-sm hover:shadow-xl transition"
+            >
+              <div className="aspect-[4/3] overflow-hidden bg-sage/20">
+                <img src={room.image} alt={room.name} loading="lazy"
+                  className="w-full h-full object-cover group-hover:scale-105 transition duration-500" />
+              </div>
+              <div className="p-5">
+                <h3 className="font-serif text-xl font-semibold text-ink">{room.name}</h3>
+                <p className="flex items-center gap-1 text-sm text-ink/60 mt-1">
+                  <Users size={15} /> Maks. {room.capacity} tamu
+                </p>
+                <div className="flex items-center justify-between mt-4">
+                  <p>
+                    <span className="text-lg font-bold text-wood">{formatRupiah(room.price)}</span>
+                    <span className="text-xs text-ink/60"> / malam</span>
+                  </p>
+                  <span className="text-sm font-semibold text-sage-dark group-hover:underline">Detail</span>
                 </div>
               </div>
+            </Link>
+          ))}
+        </div>
+      </section>
 
-              <button
-                type="submit"
-                className="w-full md:w-auto px-8 py-3 bg-sage text-white font-medium rounded-lg hover:bg-sage-dark transition shadow-md hover:shadow-lg"
-              >
-                Cari Kamar Tersedia
-              </button>
-            </form>
+      {/* Fasilitas */}
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-20">
+        <div className="text-center mb-8">
+          <p className="text-sage-dark text-sm font-semibold uppercase tracking-wider">Kenyamanan</p>
+          <h2 className="font-serif text-3xl md:text-4xl font-bold text-wood mt-1">Fasilitas Lengkap</h2>
+        </div>
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+          {facilities.map(({ icon: Icon, label }) => (
+            <div key={label} className="bg-white rounded-2xl p-5 text-center shadow-sm">
+              <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-sage/20 flex items-center justify-center text-sage-dark">
+                <Icon size={22} />
+              </div>
+              <p className="text-sm font-medium text-ink">{label}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* Cara memesan */}
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-20">
+        <div className="bg-wood rounded-[2rem] px-6 md:px-12 py-12 text-white">
+          <div className="text-center mb-10">
+            <h2 className="font-serif text-3xl md:text-4xl font-bold">Cara Memesan</h2>
+            <p className="text-white/75 mt-2">Empat langkah mudah tanpa ribet</p>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
+            {steps.map(({ icon: Icon, title, desc }, i) => (
+              <div key={title} className="text-center">
+                <div className="relative w-16 h-16 mx-auto mb-4 rounded-full bg-white/10 flex items-center justify-center">
+                  <Icon size={26} />
+                  <span className="absolute -top-1 -right-1 w-6 h-6 rounded-full bg-sage text-ink text-xs font-bold flex items-center justify-center">
+                    {i + 1}
+                  </span>
+                </div>
+                <h3 className="font-semibold text-lg">{title}</h3>
+                <p className="text-sm text-white/75 mt-1">{desc}</p>
+              </div>
+            ))}
           </div>
         </div>
-      </div>
+      </section>
 
-      {/* Features Section */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-12">
-        <div className="text-center p-6 bg-white rounded-xl shadow-sm">
-          <div className="w-12 h-12 bg-sage/10 rounded-full flex items-center justify-center mx-auto mb-4">
-            <svg className="w-6 h-6 text-sage" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
-            </svg>
-          </div>
-          <h3 className="text-lg font-semibold text-wood mb-2">Kamar Nyaman</h3>
-          <p className="text-sm text-ink/70">Berbagai pilihan kamar dengan fasilitas lengkap</p>
+      {/* Galeri */}
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
+        <div className="text-center mb-8">
+          <p className="text-sage-dark text-sm font-semibold uppercase tracking-wider">Galeri</p>
+          <h2 className="font-serif text-3xl md:text-4xl font-bold text-wood mt-1">Suasana Homestay</h2>
         </div>
-
-        <div className="text-center p-6 bg-white rounded-xl shadow-sm">
-          <div className="w-12 h-12 bg-sage/10 rounded-full flex items-center justify-center mx-auto mb-4">
-            <svg className="w-6 h-6 text-sage" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-          </div>
-          <h3 className="text-lg font-semibold text-wood mb-2">Booking Mudah</h3>
-          <p className="text-sm text-ink/70">Proses reservasi yang cepat dan aman</p>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {gallery.map((src, i) => (
+            <div
+              key={src}
+              className={`overflow-hidden rounded-2xl bg-sage/20 ${i === 0 ? 'md:row-span-2' : ''} aspect-square md:aspect-auto md:h-full min-h-[180px]`}
+            >
+              <img src={src} alt={`Suasana homestay ${i + 1}`} loading="lazy"
+                className="w-full h-full object-cover hover:scale-105 transition duration-500" />
+            </div>
+          ))}
         </div>
-
-        <div className="text-center p-6 bg-white rounded-xl shadow-sm">
-          <div className="w-12 h-12 bg-sage/10 rounded-full flex items-center justify-center mx-auto mb-4">
-            <svg className="w-6 h-6 text-sage" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-          </div>
-          <h3 className="text-lg font-semibold text-wood mb-2">Harga Terjangkau</h3>
-          <p className="text-sm text-ink/70">Dapatkan harga terbaik untuk pengalaman menginap</p>
+        <div className="text-center mt-12">
+          <Link
+            to="/rooms"
+            className="inline-flex items-center gap-2 bg-sage-dark hover:bg-wood text-white font-semibold px-8 py-4 rounded-full transition shadow-md"
+          >
+            Pesan Kamar Sekarang <ArrowRight size={18} />
+          </Link>
         </div>
-      </div>
+      </section>
     </GuestLayout>
   );
 };
