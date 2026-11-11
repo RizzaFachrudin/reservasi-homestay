@@ -38,3 +38,49 @@ Content-Type: application/json
     "email": "admin@homestay.com",
     "password": "admin123"
 }
+
+@adminToken = {{loginAdmin.response.body.data.token}}
+
+### 6. Public - Get Facilities
+GET {{baseUrl}}/facilities
+
+### 7. Public - Get Rooms (Catalog)
+GET {{baseUrl}}/rooms
+
+### 8. Public - Get Featured Rooms
+GET {{baseUrl}}/rooms?featured=true
+
+### 9. Public - Get Room Detail
+GET {{baseUrl}}/rooms/1
+
+### 10. Admin - Get All Facilities
+GET {{baseUrl}}/admin/facilities
+Authorization: Bearer {{adminToken}}
+
+### 11. Admin - Create Facility
+POST {{baseUrl}}/admin/facilities
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+    "name": "Kolam Renang",
+    "icon": "waves"
+}
+
+### 12. Admin - Get All Rooms
+GET {{baseUrl}}/admin/rooms
+Authorization: Bearer {{adminToken}}
+
+### 13. Admin - Create Room
+POST {{baseUrl}}/admin/rooms
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+    "name": "Kamar Suite Sunset",
+    "description": "Kamar dengan pemandangan matahari terbenam yang indah",
+    "pricePerNight": 750000,
+    "capacity": 3,
+    "status": "Available",
+    "facilityIds": [1, 2]
+}
