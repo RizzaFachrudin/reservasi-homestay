@@ -5,8 +5,8 @@ import GuestLayout from '../../layouts/GuestLayout';
 const Rooms: React.FC = () => {
   const [searchParams] = useSearchParams();
 
-  const checkIn = searchParams.get('checkIn');
-  const checkOut = searchParams.get('checkOut');
+  const checkIn = searchParams.get('check_in') || searchParams.get('checkIn');
+  const checkOut = searchParams.get('check_out') || searchParams.get('checkOut');
   const guests = searchParams.get('guests');
 
   return (

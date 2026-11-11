@@ -12,8 +12,14 @@ const Login: React.FC = () => {
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Get redirect URL from query params
-  const redirect = new URLSearchParams(location.search).get('redirect') || '/';
+  // Validate redirect parameter to prevent open redirect (BR-19: must start with '/' and not '//')
+  const rawRedirect = new URLSearchParams(location.search).get('redirect');
+  const isValidRedirect =
+    rawRedirect &&
+    rawRedirect.startsWith('/') &&
+    !rawRedirect.startsWith('//') &&
+    !rawRedirect.includes('://');
+  const safeRedirect = isValidRedirect ? rawRedirect : null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -21,8 +27,14 @@ const Login: React.FC = () => {
     setIsSubmitting(true);
 
     try {
-      await login(email, password);
-      navigate(redirect);
+      const loggedInUser = await login(email, password);
+      if (safeRedirect) {
+        navigate(safeRedirect, { replace: true });
+      } else if (loggedInUser.role === 'Admin') {
+        navigate('/admin', { replace: true });
+      } else {
+        navigate('/', { replace: true });
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Login gagal');
     } finally {
@@ -98,7 +110,13 @@ const Login: React.FC = () => {
         <div className="mt-6 text-center text-sm text-ink">
           Belum punya akun?{' '}
           <button
-            onClick={() => navigate('/register')}
+            onClick={() =>
+              navigate(
+                safeRedirect
+                  ? `/register?redirect=${encodeURIComponent(safeRedirect)}`
+                  : '/register'
+              )
+            }
             className="text-sage hover:text-sage-dark font-medium underline"
           >
             Daftar di sini

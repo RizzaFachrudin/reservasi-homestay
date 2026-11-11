@@ -29,10 +29,22 @@ class ApiService {
     this.api.interceptors.response.use(
       (response) => response,
       (error) => {
-        if (error.response?.status === 401) {
+        const requestUrl: string = error.config?.url || '';
+        const isAuthLoginOrRegister =
+          requestUrl.includes('/auth/login') || requestUrl.includes('/auth/register');
+
+        if (error.response?.status === 401 && !isAuthLoginOrRegister) {
           localStorage.removeItem('token');
           localStorage.removeItem('user');
-          window.location.href = '/login';
+
+          const currentPath = window.location.pathname + window.location.search;
+          if (!window.location.pathname.startsWith('/login')) {
+            const redirectParam =
+              currentPath && currentPath !== '/'
+                ? `?redirect=${encodeURIComponent(currentPath)}`
+                : '';
+            window.location.href = `/login${redirectParam}`;
+          }
         }
         return Promise.reject(error);
       }

@@ -1,12 +1,13 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import axios from 'axios';
 import axiosInstance from '../services/api.service';
 
-interface User {
+export interface User {
   id: string;
   name: string;
   email: string;
   phone: string;
-  role: string;
+  role: 'Admin' | 'Guest' | string;
 }
 
 interface AuthContextType {
@@ -14,11 +15,28 @@ interface AuthContextType {
   token: string | null;
   isLoading: boolean;
   isAuthenticated: boolean;
-  login: (email: string, password: string) => Promise<void>;
-  register: (name: string, email: string, password: string, phone: string) => Promise<void>;
+  login: (email: string, password: string) => Promise<User>;
+  register: (name: string, email: string, password: string, phone: string) => Promise<User>;
   logout: () => void;
   getProfile: () => Promise<void>;
 }
+
+const extractErrorMessage = (error: unknown, fallback: string): string => {
+  if (axios.isAxiosError(error)) {
+    const data = error.response?.data as { message?: string; errors?: Record<string, string> } | undefined;
+    if (data?.errors && typeof data.errors === 'object') {
+      const firstError = Object.values(data.errors)[0];
+      if (firstError) return firstError;
+    }
+    if (data?.message) {
+      return data.message;
+    }
+  }
+  if (error instanceof Error) {
+    return error.message;
+  }
+  return fallback;
+};
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
@@ -59,7 +77,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const login = async (email: string, password: string) => {
+  const login = async (email: string, password: string): Promise<User> => {
     try {
       const response = await axiosInstance.post<{ success: boolean; data: { user: User; token: string }; message?: string }>('/auth/login', { email, password });
 
@@ -68,18 +86,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setUser(user);
         setToken(token);
         localStorage.setItem('token', token);
+        return user;
       } else {
         throw new Error(response.message || 'Login gagal');
       }
     } catch (error) {
-      if (error instanceof Error) {
-        throw error;
-      }
-      throw new Error('Login gagal');
+      throw new Error(extractErrorMessage(error, 'Login gagal'));
     }
   };
 
-  const register = async (name: string, email: string, password: string, phone: string) => {
+  const register = async (name: string, email: string, password: string, phone: string): Promise<User> => {
     try {
       const response = await axiosInstance.post<{ success: boolean; data: { user: User; token: string }; message?: string }>('/auth/register', {
         name,
@@ -93,14 +109,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setUser(user);
         setToken(token);
         localStorage.setItem('token', token);
+        return user;
       } else {
         throw new Error(response.message || 'Registrasi gagal');
       }
     } catch (error) {
-      if (error instanceof Error) {
-        throw error;
-      }
-      throw new Error('Registrasi gagal');
+      throw new Error(extractErrorMessage(error, 'Registrasi gagal'));
     }
   };
 

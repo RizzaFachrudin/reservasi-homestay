@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 
 const Register: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { register, isLoading } = useAuth();
 
   const [name, setName] = useState('');
@@ -12,6 +13,15 @@ const Register: React.FC = () => {
   const [phone, setPhone] = useState('');
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Validate redirect parameter to prevent open redirect (BR-19)
+  const rawRedirect = new URLSearchParams(location.search).get('redirect');
+  const isValidRedirect =
+    rawRedirect &&
+    rawRedirect.startsWith('/') &&
+    !rawRedirect.startsWith('//') &&
+    !rawRedirect.includes('://');
+  const safeRedirect = isValidRedirect ? rawRedirect : null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -33,7 +43,7 @@ const Register: React.FC = () => {
 
     try {
       await register(name, email, password, phone);
-      navigate('/'); // Redirect to home after successful registration
+      navigate(safeRedirect || '/', { replace: true });
     } catch (err) {
       if (err instanceof Error) {
         if (err.message.includes('Email sudah terdaftar')) {
@@ -149,7 +159,13 @@ const Register: React.FC = () => {
         <div className="mt-6 text-center text-sm text-ink">
           Sudah punya akun?{' '}
           <button
-            onClick={() => navigate('/login')}
+            onClick={() =>
+              navigate(
+                safeRedirect
+                  ? `/login?redirect=${encodeURIComponent(safeRedirect)}`
+                  : '/login'
+              )
+            }
             className="text-sage hover:text-sage-dark font-medium underline"
           >
             Login di sini

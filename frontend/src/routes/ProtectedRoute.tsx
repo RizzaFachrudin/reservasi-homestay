@@ -24,8 +24,9 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, roles 
   }
 
   if (!isAuthenticated) {
-    // Redirect to login with the current location for redirection after login
-    return <Navigate to={`/login?redirect=${encodeURIComponent(location.pathname)}`} replace />;
+    // Redirect to login with the current location (including query string) for redirection after login (BR-19)
+    const fullPath = `${location.pathname}${location.search}`;
+    return <Navigate to={`/login?redirect=${encodeURIComponent(fullPath)}`} replace />;
   }
 
   if (roles && user && !roles.includes(user.role)) {

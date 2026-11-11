@@ -36,10 +36,10 @@ const Home: React.FC = () => {
       return;
     }
 
-    // Navigate to rooms page with search params
+    // Navigate to rooms page with search params (standardized to snake_case per PRD BR-19 & §9.2)
     const params = new URLSearchParams({
-      checkIn: checkInDate,
-      checkOut: checkOutDate,
+      check_in: checkInDate,
+      check_out: checkOutDate,
       guests: guestCount.toString()
     });
 
