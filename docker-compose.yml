@@ -61,6 +61,9 @@ services:
       VITE_MIDTRANS_CLIENT_KEY: SB-Mid-client-YOUR_KEY
     volumes:
       - ./frontend/src:/app/src
+      - ./frontend/public:/app/public
+      - ./frontend/index.html:/app/index.html
+      - ./frontend/tailwind.config.js:/app/tailwind.config.js
     networks:
       - homestay_network
     depends_on:
