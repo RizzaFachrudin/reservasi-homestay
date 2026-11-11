@@ -3,7 +3,7 @@
 **Project:** Sistem Informasi Reservasi Homestay  
 **Repository:** https://github.com/RizzaFachrudin/reservasi-homestay  
 **Periode Pengerjaan:** Oktober 2026 - November 2026  
-**Status Terkini:** Milestone 1 (M1) - Authentication & Public Pages - **COMPLETED**
+**Status Terkini:** Milestone 2 (M2) - Admin Master Data Management - **COMPLETED**
 
 ---
 
@@ -506,13 +506,13 @@
 | SF-03 | Public Landing Page | ✅ DONE | Home page dengan search form |
 | SF-04 | View Available Rooms | 🟡 PARTIAL | Halaman placeholder, logic belum |
 
-### Milestone 2 (M2): Admin Master Data Management ❌
+### Milestone 2 (M2): Admin Master Data Management ✅
 
 | No | System Feature | Status | Keterangan |
 |----|----------------|--------|------------|
-| SF-05 | Manage Facilities (Admin) | ❌ NOT STARTED | Backend + Frontend belum |
-| SF-06 | Manage Rooms (Admin) | ❌ NOT STARTED | Backend + Frontend belum |
-| SF-07 | Room Image Upload (Admin) | ❌ NOT STARTED | Backend + Frontend belum |
+| SF-05 | Manage Facilities (Admin) | ✅ DONE | Backend CRUD + Frontend Admin |
+| SF-06 | Manage Rooms (Admin) | ✅ DONE | Backend CRUD (Soft Delete BR-12) + Frontend Admin |
+| SF-07 | Room Image Upload (Admin) | ✅ DONE | Backend Multer + Frontend Gallery & Primary Photo |
 
 ### Milestone 3 (M3): Booking Flow ❌
 
@@ -570,12 +570,12 @@
 
 ### Overall Project Progress
 - **M1:** ✅ 100% (4/4 features done)
-- **M2:** ❌ 0% (0/3 features)
+- **M2:** ✅ 100% (3/3 features done)
 - **M3:** ❌ 0% (0/3 features)
 - **M4:** ❌ 0% (0/2 features)
 - **M5:** ❌ 0% (0/3 features)
 - **M6:** ❌ 0% (0/2 features)
-- **Total:** 23.5% (4/17 features completed)
+- **Total:** 41.2% (7/17 features completed)
 
 ---
 
