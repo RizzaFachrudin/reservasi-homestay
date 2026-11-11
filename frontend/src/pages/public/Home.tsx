@@ -1,26 +1,13 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
-  Wifi, Wind, Tv, Bath, Coffee, Car, Search, CalendarCheck, CreditCard, KeyRound,
-  Users, ArrowRight, Star,
+  Search, CalendarCheck, CreditCard, KeyRound,
+  Users, ArrowRight, Star, BedDouble,
 } from 'lucide-react';
 import GuestLayout from '../../layouts/GuestLayout';
-
-// Data statis sementara; akan diganti API GET /rooms?featured=true dan /facilities (M2/M3).
-const featuredRooms = [
-  { id: 1, name: 'Kamar Double Cozy', price: 350000, capacity: 2, image: '/images/room-1.jpg' },
-  { id: 2, name: 'Kamar Keluarga', price: 550000, capacity: 4, image: '/images/room-2.jpg' },
-  { id: 3, name: 'Deluxe dengan Balkon', price: 650000, capacity: 3, image: '/images/room-3.jpg' },
-];
-
-const facilities = [
-  { icon: Wifi, label: 'WiFi Cepat' },
-  { icon: Wind, label: 'AC' },
-  { icon: Tv, label: 'TV' },
-  { icon: Bath, label: 'Kamar Mandi Dalam' },
-  { icon: Coffee, label: 'Sarapan' },
-  { icon: Car, label: 'Parkir Gratis' },
-];
+import { roomService, Room } from '../../services/room.service';
+import { facilityService, Facility } from '../../services/facility.service';
+import { getFacilityIcon } from '../admin/Facilities';
 
 const steps = [
   { icon: Search, title: 'Cari Kamar', desc: 'Pilih tanggal dan jumlah tamu, lihat kamar yang tersedia.' },
@@ -46,7 +33,31 @@ const Home: React.FC = () => {
   const [guestCount, setGuestCount] = useState(1);
   const [error, setError] = useState('');
 
+  // Dynamic API state
+  const [featuredRooms, setFeaturedRooms] = useState<Room[]>([]);
+  const [facilities, setFacilities] = useState<Facility[]>([]);
+  const [loadingData, setLoadingData] = useState(true);
+
   const today = new Date().toISOString().split('T')[0];
+
+  useEffect(() => {
+    const loadHomeData = async () => {
+      try {
+        const [rooms, facs] = await Promise.all([
+          roomService.getPublicRooms(true),
+          facilityService.getPublicFacilities(),
+        ]);
+        setFeaturedRooms(rooms);
+        setFacilities(facs);
+      } catch (err) {
+        console.error('Error fetching home data:', err);
+      } finally {
+        setLoadingData(false);
+      }
+    };
+
+    loadHomeData();
+  }, []);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -143,33 +154,54 @@ const Home: React.FC = () => {
             Lihat semua <ArrowRight size={16} />
           </Link>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {featuredRooms.map((room) => (
-            <Link
-              key={room.id}
-              to="/rooms"
-              className="group bg-white rounded-3xl overflow-hidden shadow-sm hover:shadow-xl transition"
-            >
-              <div className="aspect-[4/3] overflow-hidden bg-sage/20">
-                <img src={room.image} alt={room.name} loading="lazy"
-                  className="w-full h-full object-cover group-hover:scale-105 transition duration-500" />
-              </div>
-              <div className="p-5">
-                <h3 className="font-serif text-xl font-semibold text-ink">{room.name}</h3>
-                <p className="flex items-center gap-1 text-sm text-ink/60 mt-1">
-                  <Users size={15} /> Maks. {room.capacity} tamu
-                </p>
-                <div className="flex items-center justify-between mt-4">
-                  <p>
-                    <span className="text-lg font-bold text-wood">{formatRupiah(room.price)}</span>
-                    <span className="text-xs text-ink/60"> / malam</span>
-                  </p>
-                  <span className="text-sm font-semibold text-sage-dark group-hover:underline">Detail</span>
-                </div>
-              </div>
-            </Link>
-          ))}
-        </div>
+
+        {loadingData ? (
+          <div className="py-12 text-center text-stone-400">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-sage-dark mx-auto mb-2" />
+            <p className="text-xs">Memuat kamar unggulan...</p>
+          </div>
+        ) : featuredRooms.length === 0 ? (
+          <div className="py-12 text-center text-stone-400 bg-white rounded-3xl border border-stone-100">
+            <BedDouble size={36} className="mx-auto mb-2 text-stone-300" />
+            <p className="text-sm font-medium text-stone-600">Belum ada kamar unggulan</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {featuredRooms.map((room, idx) => {
+              // Fallback image if room has no uploaded images yet
+              const roomImage = room.primaryImage || `/images/room-${(idx % 3) + 1}.jpg`;
+              return (
+                <Link
+                  key={room.id}
+                  to="/rooms"
+                  className="group bg-white rounded-3xl overflow-hidden shadow-sm hover:shadow-xl transition"
+                >
+                  <div className="aspect-[4/3] overflow-hidden bg-sage/20">
+                    <img
+                      src={roomImage}
+                      alt={room.name}
+                      loading="lazy"
+                      className="w-full h-full object-cover group-hover:scale-105 transition duration-500"
+                    />
+                  </div>
+                  <div className="p-5">
+                    <h3 className="font-serif text-xl font-semibold text-ink">{room.name}</h3>
+                    <p className="flex items-center gap-1 text-sm text-ink/60 mt-1">
+                      <Users size={15} /> Maks. {room.capacity} tamu
+                    </p>
+                    <div className="flex items-center justify-between mt-4">
+                      <p>
+                        <span className="text-lg font-bold text-wood">{formatRupiah(room.pricePerNight)}</span>
+                        <span className="text-xs text-ink/60"> / malam</span>
+                      </p>
+                      <span className="text-sm font-semibold text-sage-dark group-hover:underline">Detail</span>
+                    </div>
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
+        )}
       </section>
 
       {/* Fasilitas */}
@@ -178,16 +210,22 @@ const Home: React.FC = () => {
           <p className="text-sage-dark text-sm font-semibold uppercase tracking-wider">Kenyamanan</p>
           <h2 className="font-serif text-3xl md:text-4xl font-bold text-wood mt-1">Fasilitas Lengkap</h2>
         </div>
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-          {facilities.map(({ icon: Icon, label }) => (
-            <div key={label} className="bg-white rounded-2xl p-5 text-center shadow-sm">
-              <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-sage/20 flex items-center justify-center text-sage-dark">
-                <Icon size={22} />
+        {loadingData ? (
+          <div className="py-8 text-center text-stone-400">
+            <p className="text-xs">Memuat fasilitas...</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+            {facilities.map((f) => (
+              <div key={f.id} className="bg-white rounded-2xl p-5 text-center shadow-sm">
+                <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-sage/20 flex items-center justify-center text-sage-dark">
+                  {getFacilityIcon(f.icon)}
+                </div>
+                <p className="text-sm font-medium text-ink truncate">{f.name}</p>
               </div>
-              <p className="text-sm font-medium text-ink">{label}</p>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </section>
 
       {/* Cara memesan */}
