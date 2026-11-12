@@ -40,9 +40,26 @@ model Room {
   images        RoomImage[]
   facilities    FacilityRoom[]
   reservations  Reservation[]
+  units         RoomUnit[]
 
   @@index([deletedAt], name: "idx_rooms_deleted")
   @@map("rooms")
+}
+
+model RoomUnit {
+  id          BigInt            @id @default(autoincrement()) @db.UnsignedBigInt
+  roomId      BigInt            @map("room_id") @db.UnsignedBigInt
+  unitNumber  String            @map("unit_number") @db.VarChar(30)
+  status      RoomStatus        @default(Available)
+  createdAt   DateTime          @default(now()) @map("created_at") @db.Timestamp(0)
+  updatedAt   DateTime          @updatedAt @map("updated_at") @db.Timestamp(0)
+
+  room         Room              @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  reservations ReservationUnit[]
+
+  @@unique([roomId, unitNumber], name: "uq_room_unit_number")
+  @@index([roomId], name: "idx_room_units_room")
+  @@map("room_units")
 }
 
 model Facility {
@@ -89,6 +106,7 @@ model Reservation {
   checkInDate   DateTime          @map("check_in_date") @db.Date
   checkOutDate  DateTime          @map("check_out_date") @db.Date
   guestCount    Int               @map("guest_count") @db.UnsignedTinyInt
+  roomCount     Int               @default(1) @map("room_count") @db.UnsignedTinyInt
   totalPrice    Decimal           @map("total_price") @db.Decimal(12, 2)
   status        ReservationStatus @default(Pending)
   createdAt     DateTime          @default(now()) @map("created_at") @db.Timestamp(0)
@@ -97,11 +115,24 @@ model Reservation {
   user          User              @relation(fields: [userId], references: [id])
   room          Room              @relation(fields: [roomId], references: [id])
   payment       Payment?
+  units         ReservationUnit[]
 
   @@index([roomId, checkInDate, checkOutDate], name: "idx_room_dates")
   @@index([userId], name: "idx_user")
   @@index([status], name: "idx_status")
   @@map("reservations")
+}
+
+model ReservationUnit {
+  reservationId BigInt      @map("reservation_id") @db.UnsignedBigInt
+  unitId        BigInt      @map("unit_id") @db.UnsignedBigInt
+
+  reservation   Reservation @relation(fields: [reservationId], references: [id], onDelete: Cascade)
+  unit          RoomUnit    @relation(fields: [unitId], references: [id], onDelete: Restrict)
+
+  @@id([reservationId, unitId])
+  @@index([unitId], name: "idx_reservation_units_unit")
+  @@map("reservation_units")
 }
 
 model Payment {

@@ -8,7 +8,9 @@ async function main() {
 
   // Clean existing data
   await prisma.payment.deleteMany();
+  await prisma.reservationUnit.deleteMany();
   await prisma.reservation.deleteMany();
+  await prisma.roomUnit.deleteMany();
   await prisma.roomImage.deleteMany();
   await prisma.facilityRoom.deleteMany();
   await prisma.room.deleteMany();
@@ -68,7 +70,7 @@ async function main() {
   const rooms = await Promise.all([
     prisma.room.create({
       data: {
-        name: 'Kamar Deluxe',
+        name: 'Standard Cozy Room',
         description: 'Kamar nyaman dengan pemandangan taman, cocok untuk pasangan atau traveler solo.',
         pricePerNight: 350000,
         capacity: 2,
@@ -85,7 +87,7 @@ async function main() {
     }),
     prisma.room.create({
       data: {
-        name: 'Kamar Family',
+        name: 'Family Wooden Villa',
         description: 'Kamar luas untuk keluarga, dilengkapi 2 tempat tidur dan area duduk.',
         pricePerNight: 500000,
         capacity: 4,
@@ -103,7 +105,7 @@ async function main() {
     }),
     prisma.room.create({
       data: {
-        name: 'Suite Executive',
+        name: 'Deluxe Garden Suite',
         description: 'Suite mewah dengan ruang tamu terpisah, balkon pribadi, dan fasilitas premium.',
         pricePerNight: 850000,
         capacity: 2,
@@ -121,7 +123,23 @@ async function main() {
       },
     }),
   ]);
-  console.log('✅ Created', rooms.length, 'rooms');
+  console.log('✅ Created', rooms.length, 'room types');
+
+  // Create physical units per room type (Standard: 101..112, Family: 201..206, Suite: 301..302)
+  const unitPlan = [
+    { room: rooms[0], base: 100, total: 12 },
+    { room: rooms[1], base: 200, total: 6 },
+    { room: rooms[2], base: 300, total: 2 },
+  ];
+  for (const plan of unitPlan) {
+    await prisma.roomUnit.createMany({
+      data: Array.from({ length: plan.total }, (_, i) => ({
+        roomId: plan.room.id,
+        unitNumber: String(plan.base + i + 1),
+      })),
+    });
+  }
+  console.log('✅ Created 20 room units');
 
   console.log('🎉 Seed completed successfully!');
   console.log('\n📝 Test Accounts:');

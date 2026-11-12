@@ -44,6 +44,7 @@ services:
         condition: service_healthy
     volumes:
       - ./backend/src:/app/src
+      - ./backend/prisma:/app/prisma
       - ./backend/uploads:/app/uploads
     networks:
       - homestay_network
@@ -84,6 +85,8 @@ services:
     depends_on:
       db:
         condition: service_healthy
+    volumes:
+      - ./backend/prisma:/app/prisma
     networks:
       - homestay_network
     command: npx prisma studio
