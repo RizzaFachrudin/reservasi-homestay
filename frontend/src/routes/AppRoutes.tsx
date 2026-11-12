@@ -7,14 +7,13 @@ import Rooms from '../pages/public/Rooms';
 import RoomDetail from '../pages/public/RoomDetail';
 import Booking from '../pages/guest/Booking';
 import Payment from '../pages/guest/Payment';
+import Reservations from '../pages/guest/Reservations';
+import ReservationDetail from '../pages/guest/ReservationDetail';
 import { ProtectedRoute } from './ProtectedRoute';
 import AdminDashboard from '../pages/admin/Dashboard';
 import AdminRooms from '../pages/admin/Rooms';
 import AdminRoomGallery from '../pages/admin/RoomGallery';
 import AdminFacilities from '../pages/admin/Facilities';
-
-// Placeholder for future protected pages
-const GuestReservations = () => <h1>Guest Reservations (Protected)</h1>;
 
 export const AppRoutes = () => {
   return (
@@ -41,7 +40,12 @@ export const AppRoutes = () => {
         } />
         <Route path="/reservations" element={
           <ProtectedRoute roles={['Guest', 'Admin']}>
-            <GuestReservations />
+            <Reservations />
+          </ProtectedRoute>
+        } />
+        <Route path="/reservations/:id" element={
+          <ProtectedRoute roles={['Guest', 'Admin']}>
+            <ReservationDetail />
           </ProtectedRoute>
         } />
 

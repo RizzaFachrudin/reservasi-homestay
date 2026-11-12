@@ -88,4 +88,38 @@ export const reservationService = {
     );
     return res.data;
   },
+
+  downloadInvoice: async (id: string, bookingCode?: string): Promise<void> => {
+    const token = localStorage.getItem('token');
+    const response = await fetch(`/api/reservations/${id}/invoice`, {
+      method: 'GET',
+      headers: {
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+    });
+
+    if (!response.ok) {
+      let errMsg = 'Gagal mengunduh invoice PDF';
+      try {
+        const errJson = await response.json();
+        if (errJson?.message) errMsg = errJson.message;
+      } catch {
+        // ignore JSON parse error
+      }
+      throw new Error(errMsg);
+    }
+
+    const blob = await response.blob();
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute(
+      'download',
+      `Invoice-${bookingCode || id}.pdf`
+    );
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.URL.revokeObjectURL(url);
+  },
 };

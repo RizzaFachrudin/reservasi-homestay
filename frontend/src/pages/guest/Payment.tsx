@@ -16,6 +16,8 @@ import {
   ExternalLink,
   Loader2,
   RotateCcw,
+  FileDown,
+  Ticket,
 } from 'lucide-react';
 import GuestLayout from '../../layouts/GuestLayout';
 import { reservationService, Reservation } from '../../services/reservation.service';
@@ -100,6 +102,7 @@ const Payment: React.FC = () => {
   const [payErrorMsg, setPayErrorMsg] = useState('');
   const [redirectUrlFallback, setRedirectUrlFallback] = useState<string>('');
   const [copied, setCopied] = useState(false);
+  const [downloading, setDownloading] = useState(false);
   const [remainingSeconds, setRemainingSeconds] = useState<number>(0);
 
   const fetchReservation = useCallback(
@@ -170,6 +173,22 @@ const Payment: React.FC = () => {
     navigator.clipboard.writeText(reservation.bookingCode);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleDownloadInvoice = async () => {
+    if (!reservation) return;
+    setPayErrorMsg('');
+    setDownloading(true);
+    try {
+      await reservationService.downloadInvoice(
+        reservation.id,
+        reservation.bookingCode
+      );
+    } catch (err: any) {
+      setPayErrorMsg(err?.message || 'Gagal mengunduh invoice PDF');
+    } finally {
+      setDownloading(false);
+    }
   };
 
   const handlePayNow = async () => {
@@ -638,14 +657,40 @@ const Payment: React.FC = () => {
             )}
 
             {isConfirmed && (
-              <div className="bg-emerald-50 border border-emerald-200/80 rounded-2xl p-4 text-center space-y-2">
-                <CheckCircle2 size={26} className="mx-auto text-emerald-600" />
-                <p className="text-xs font-semibold text-emerald-900">
-                  Tagihan Lunas (Settlement)
-                </p>
-                <p className="text-[11px] text-emerald-800">
-                  Kamar Anda telah terkonfirmasi untuk tanggal yang dipilih.
-                </p>
+              <div className="space-y-3">
+                <div className="bg-emerald-50 border border-emerald-200/80 rounded-2xl p-4 text-center space-y-1.5">
+                  <CheckCircle2 size={26} className="mx-auto text-emerald-600" />
+                  <p className="text-xs font-semibold text-emerald-900">
+                    Tagihan Lunas (Settlement)
+                  </p>
+                  <p className="text-[11px] text-emerald-800">
+                    Kamar Anda telah terkonfirmasi untuk tanggal yang dipilih.
+                  </p>
+                </div>
+
+                {reservation.payment?.status === 'Settlement' && (
+                  <button
+                    type="button"
+                    disabled={downloading}
+                    onClick={handleDownloadInvoice}
+                    className="w-full flex items-center justify-center gap-2 bg-wood hover:bg-sage-dark text-white font-semibold py-3.5 px-5 rounded-2xl transition shadow-sm text-sm disabled:opacity-60"
+                  >
+                    {downloading ? (
+                      <Loader2 size={16} className="animate-spin" />
+                    ) : (
+                      <FileDown size={16} />
+                    )}
+                    <span>Unduh Invoice PDF</span>
+                  </button>
+                )}
+
+                <Link
+                  to={`/reservations/${reservation.id}`}
+                  className="w-full flex items-center justify-center gap-2 bg-sage-dark hover:bg-wood text-white font-semibold py-3.5 px-5 rounded-2xl transition shadow-sm text-sm"
+                >
+                  <Ticket size={16} />
+                  <span>Lihat Tiket Check-in Digital</span>
+                </Link>
               </div>
             )}
 
