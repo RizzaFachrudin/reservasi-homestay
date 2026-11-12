@@ -6,7 +6,9 @@ import authRoutes from './routes/auth.routes';
 import facilityRoutes from './routes/facility.routes';
 import roomRoutes from './routes/room.routes';
 import reservationRoutes from './routes/reservation.routes';
+import paymentRoutes from './routes/payment.routes';
 import adminRoutes from './routes/admin.routes';
+import { startExpireReservationsJob } from './jobs/expire-reservations.job';
 
 // Fix BigInt serialization for JSON responses
 (BigInt.prototype as any).toJSON = function () {
@@ -36,6 +38,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/facilities', facilityRoutes);
 app.use('/api/rooms', roomRoutes);
 app.use('/api/reservations', reservationRoutes);
+app.use('/api/payments', paymentRoutes);
 app.use('/api/admin', adminRoutes);
 
 // Health check route
@@ -64,6 +67,7 @@ app.use((_req: Request, res: Response) => {
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
   console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+  startExpireReservationsJob();
 });
 
 export default app;
