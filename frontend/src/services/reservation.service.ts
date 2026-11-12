@@ -43,6 +43,15 @@ export interface CreateReservationPayload {
   guest_count: number;
 }
 
+export interface SnapPaymentResponse {
+  snapToken: string;
+  redirectUrl: string;
+  clientKey: string;
+  bookingCode: string;
+  amount: number;
+  reused: boolean;
+}
+
 interface ApiResponse<T> {
   success: boolean;
   message?: string;
@@ -60,8 +69,23 @@ export const reservationService = {
     return res.data;
   },
 
-  getReservationById: async (id: string): Promise<Reservation> => {
-    const res = await apiService.get<ApiResponse<Reservation>>(`/reservations/${id}`);
+  getReservationById: async (id: string, sync: boolean = false): Promise<Reservation> => {
+    const url = sync ? `/reservations/${id}?sync=true` : `/reservations/${id}`;
+    const res = await apiService.get<ApiResponse<Reservation>>(url);
+    return res.data;
+  },
+
+  initiatePayment: async (id: string): Promise<SnapPaymentResponse> => {
+    const res = await apiService.post<ApiResponse<SnapPaymentResponse>>(
+      `/reservations/${id}/pay`
+    );
+    return res.data;
+  },
+
+  syncPaymentStatus: async (id: string): Promise<Reservation> => {
+    const res = await apiService.post<ApiResponse<Reservation>>(
+      `/reservations/${id}/sync`
+    );
     return res.data;
   },
 };

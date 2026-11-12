@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import {
   CheckCircle2,
@@ -13,9 +13,28 @@ import {
   RefreshCw,
   ShieldCheck,
   BedDouble,
+  ExternalLink,
+  Loader2,
+  RotateCcw,
 } from 'lucide-react';
 import GuestLayout from '../../layouts/GuestLayout';
 import { reservationService, Reservation } from '../../services/reservation.service';
+
+declare global {
+  interface Window {
+    snap?: {
+      pay: (
+        snapToken: string,
+        callbacks?: {
+          onSuccess?: (result: any) => void;
+          onPending?: (result: any) => void;
+          onError?: (result: any) => void;
+          onClose?: () => void;
+        }
+      ) => void;
+    };
+  }
+}
 
 const formatRupiah = (n: number) => `Rp ${n.toLocaleString('id-ID')}`;
 
@@ -43,35 +62,90 @@ const formatDateTimeID = (isoStr: string) => {
   });
 };
 
+const loadMidtransSnapScript = (clientKey: string): Promise<void> => {
+  return new Promise((resolve, reject) => {
+    if (window.snap) {
+      resolve();
+      return;
+    }
+
+    const existingScript = document.getElementById('midtrans-snap-script') as HTMLScriptElement | null;
+    if (existingScript) {
+      existingScript.addEventListener('load', () => resolve());
+      existingScript.addEventListener('error', () =>
+        reject(new Error('Gagal memuat script Midtrans Snap'))
+      );
+      return;
+    }
+
+    const script = document.createElement('script');
+    script.id = 'midtrans-snap-script';
+    script.src = 'https://app.sandbox.midtrans.com/snap/snap.js';
+    script.setAttribute('data-client-key', clientKey);
+    script.async = true;
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error('Gagal memuat script Midtrans Snap'));
+    document.body.appendChild(script);
+  });
+};
+
 const Payment: React.FC = () => {
   const { reservationId } = useParams<{ reservationId: string }>();
 
   const [reservation, setReservation] = useState<Reservation | null>(null);
   const [loading, setLoading] = useState(true);
+  const [syncing, setSyncing] = useState(false);
+  const [paying, setPaying] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+  const [payErrorMsg, setPayErrorMsg] = useState('');
+  const [redirectUrlFallback, setRedirectUrlFallback] = useState<string>('');
   const [copied, setCopied] = useState(false);
   const [remainingSeconds, setRemainingSeconds] = useState<number>(0);
 
-  const fetchReservation = async () => {
-    if (!reservationId) return;
-    setLoading(true);
-    setErrorMsg('');
-    try {
-      const data = await reservationService.getReservationById(reservationId);
-      setReservation(data);
-    } catch (err: any) {
-      setErrorMsg(
-        err?.response?.data?.message ||
-          'Data reservasi tidak ditemukan atau Anda tidak memiliki akses.'
-      );
-    } finally {
-      setLoading(false);
-    }
-  };
+  const fetchReservation = useCallback(
+    async (withSync: boolean = false, silent: boolean = false) => {
+      if (!reservationId) return;
+      if (!silent) {
+        if (withSync) setSyncing(true);
+        else setLoading(true);
+      }
 
+      try {
+        const data = await reservationService.getReservationById(reservationId, withSync);
+        setReservation(data);
+        setErrorMsg('');
+      } catch (err: any) {
+        if (!silent) {
+          setErrorMsg(
+            err?.response?.data?.message ||
+              'Data reservasi tidak ditemukan atau Anda tidak memiliki akses.'
+          );
+        }
+      } finally {
+        if (!silent) {
+          setLoading(false);
+          setSyncing(false);
+        }
+      }
+    },
+    [reservationId]
+  );
+
+  // Initial load with status sync
   useEffect(() => {
-    fetchReservation();
-  }, [reservationId]);
+    fetchReservation(true, false);
+  }, [fetchReservation]);
+
+  // Automatic polling every 5 seconds while reservation is Pending (SF-7 requirement)
+  useEffect(() => {
+    if (!reservation || reservation.status !== 'Pending') return;
+
+    const pollInterval = setInterval(() => {
+      fetchReservation(true, true);
+    }, 5000);
+
+    return () => clearInterval(pollInterval);
+  }, [reservation?.status, fetchReservation]);
 
   // Countdown timer for Pending reservation (BR-08: 60 minutes expiry)
   useEffect(() => {
@@ -98,6 +172,52 @@ const Payment: React.FC = () => {
     setTimeout(() => setCopied(false), 2000);
   };
 
+  const handlePayNow = async () => {
+    if (!reservation) return;
+    setPaying(true);
+    setPayErrorMsg('');
+
+    try {
+      const snapData = await reservationService.initiatePayment(reservation.id);
+      setRedirectUrlFallback(snapData.redirectUrl);
+
+      const clientKey =
+        snapData.clientKey || import.meta.env.VITE_MIDTRANS_CLIENT_KEY || '';
+
+      await loadMidtransSnapScript(clientKey);
+
+      if (window.snap) {
+        window.snap.pay(snapData.snapToken, {
+          onSuccess: async () => {
+            await fetchReservation(true, false);
+          },
+          onPending: async () => {
+            await fetchReservation(true, false);
+          },
+          onError: async () => {
+            setPayErrorMsg(
+              'Terjadi kesalahan saat memproses pembayaran di Midtrans. Silakan coba kembali.'
+            );
+            await fetchReservation(true, false);
+          },
+          onClose: async () => {
+            await fetchReservation(true, true);
+          },
+        });
+      } else if (snapData.redirectUrl) {
+        window.open(snapData.redirectUrl, '_blank', 'noopener,noreferrer');
+      }
+    } catch (err: any) {
+      setPayErrorMsg(
+        err?.response?.data?.message ||
+          'Gagal membuka jendela pembayaran Midtrans. Silakan coba lagi.'
+      );
+      await fetchReservation(true, true);
+    } finally {
+      setPaying(false);
+    }
+  };
+
   const formatCountdown = (totalSec: number) => {
     const mins = Math.floor(totalSec / 60);
     const secs = totalSec % 60;
@@ -110,7 +230,7 @@ const Payment: React.FC = () => {
         <div className="py-24 text-center bg-white rounded-3xl border border-stone-100 max-w-3xl mx-auto">
           <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-sage-dark mx-auto mb-3" />
           <p className="text-sm text-stone-500 font-medium">
-            Memuat rincian reservasi & tagihan...
+            Memuat rincian reservasi & memeriksa status pembayaran...
           </p>
         </div>
       </GuestLayout>
@@ -142,6 +262,11 @@ const Payment: React.FC = () => {
     `/images/room-${((Number(reservation.roomId) || 1) % 3) + 1}.jpg`;
 
   const isPending = reservation.status === 'Pending';
+  const isConfirmed =
+    reservation.status === 'Confirmed' ||
+    reservation.status === 'Checked-in' ||
+    reservation.status === 'Completed';
+  const isCancelled = reservation.status === 'Cancelled';
   const isExpiredTimer = isPending && remainingSeconds <= 0;
 
   return (
@@ -157,10 +282,12 @@ const Payment: React.FC = () => {
           </Link>
           <button
             type="button"
-            onClick={fetchReservation}
-            className="inline-flex items-center gap-1.5 text-xs font-semibold text-sage-dark hover:text-wood bg-white border border-stone-200 px-3.5 py-2 rounded-xl transition"
+            disabled={syncing}
+            onClick={() => fetchReservation(true, false)}
+            className="inline-flex items-center gap-1.5 text-xs font-semibold text-sage-dark hover:text-wood bg-white border border-stone-200 px-3.5 py-2 rounded-xl transition disabled:opacity-60"
           >
-            <RefreshCw size={14} /> Perbarui Status
+            <RefreshCw size={14} className={syncing ? 'animate-spin' : ''} />
+            <span>{syncing ? 'Memeriksa...' : 'Cek Status Pembayaran'}</span>
           </button>
         </div>
 
@@ -170,16 +297,16 @@ const Payment: React.FC = () => {
             <div className="flex items-start gap-4">
               <div
                 className={`w-14 h-14 rounded-2xl flex items-center justify-center shrink-0 ${
-                  reservation.status === 'Confirmed' || reservation.status === 'Checked-in'
+                  isConfirmed
                     ? 'bg-emerald-100 text-emerald-700'
-                    : reservation.status === 'Cancelled'
+                    : isCancelled
                     ? 'bg-red-100 text-red-600'
                     : 'bg-amber-100 text-amber-700'
                 }`}
               >
-                {reservation.status === 'Confirmed' || reservation.status === 'Checked-in' ? (
+                {isConfirmed ? (
                   <CheckCircle2 size={30} />
-                ) : reservation.status === 'Cancelled' ? (
+                ) : isCancelled ? (
                   <AlertCircle size={30} />
                 ) : (
                   <Clock size={30} />
@@ -189,27 +316,36 @@ const Payment: React.FC = () => {
                 <div className="flex flex-wrap items-center gap-2">
                   <span
                     className={`text-xs font-bold uppercase tracking-wider px-3 py-1 rounded-full ${
-                      reservation.status === 'Confirmed'
+                      isConfirmed
                         ? 'bg-emerald-100 text-emerald-800'
-                        : reservation.status === 'Cancelled'
+                        : isCancelled
                         ? 'bg-red-100 text-red-700'
                         : 'bg-amber-100 text-amber-800'
                     }`}
                   >
-                    Status Reservasi: {reservation.status}
+                    Reservasi: {reservation.status}
                   </span>
                   {reservation.payment && (
-                    <span className="text-xs font-semibold px-3 py-1 rounded-full bg-stone-100 text-stone-700">
+                    <span
+                      className={`text-xs font-semibold px-3 py-1 rounded-full ${
+                        reservation.payment.status === 'Settlement'
+                          ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                          : reservation.payment.status === 'Expire' ||
+                            reservation.payment.status === 'Cancel'
+                          ? 'bg-red-50 text-red-600 border border-red-200'
+                          : 'bg-stone-100 text-stone-700'
+                      }`}
+                    >
                       Pembayaran: {reservation.payment.status}
                     </span>
                   )}
                 </div>
                 <h1 className="font-serif text-2xl sm:text-3xl font-bold text-wood mt-2">
-                  {isPending
-                    ? 'Menunggu Pembayaran Anda'
-                    : reservation.status === 'Confirmed'
-                    ? 'Pembayaran Berhasil & Terkonfirmasi'
-                    : 'Detail Reservasi Kamar'}
+                  {isConfirmed
+                    ? 'Pembayaran Berhasil & Reservasi Terkonfirmasi!'
+                    : isCancelled
+                    ? 'Reservasi Dibatalkan / Kedaluwarsa'
+                    : 'Menunggu Pembayaran Anda'}
                 </h1>
                 <p className="text-xs sm:text-sm text-ink/70 mt-1">
                   Dibuat pada {formatDateTimeID(reservation.createdAt)} WIB
@@ -271,6 +407,45 @@ const Payment: React.FC = () => {
                   {formatCountdown(remainingSeconds)}
                 </div>
               )}
+            </div>
+          )}
+
+          {/* Confirmed Banner (SF-7 AC Normal) */}
+          {isConfirmed && (
+            <div className="mt-6 bg-emerald-50 border border-emerald-200 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-emerald-900">
+              <div className="text-xs sm:text-sm">
+                <strong>Terima kasih!</strong> Pembayaran Anda telah diterima (
+                <span className="uppercase font-semibold">
+                  {reservation.payment?.paymentType?.replace(/_/g, ' ') || 'Online Payment'}
+                </span>
+                ). Simpan kode reservasi{' '}
+                <strong className="font-mono">{reservation.bookingCode}</strong> untuk
+                ditunjukkan kepada petugas saat Check-in.
+              </div>
+              <Link
+                to="/reservations"
+                className="inline-flex items-center justify-center gap-1.5 bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-semibold px-4 py-2.5 rounded-xl transition shrink-0"
+              >
+                Lihat Riwayat Reservasi
+              </Link>
+            </div>
+          )}
+
+          {/* Cancelled / Expired Banner with Re-book Option (SF-7 AC Gagal) */}
+          {isCancelled && (
+            <div className="mt-6 bg-red-50 border border-red-200 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-red-900">
+              <div className="text-xs sm:text-sm">
+                <strong>Pembayaran Gagal / Kedaluwarsa:</strong> Reservasi ini telah
+                dibatalkan ({reservation.payment?.status || 'Cancelled'}) dan kamar telah
+                dilepas kembali. Silakan lakukan pemesanan ulang jika Anda masih ingin
+                menginap.
+              </div>
+              <Link
+                to={`/rooms/${reservation.roomId}?check_in=${reservation.checkInDate}&check_out=${reservation.checkOutDate}&guests=${reservation.guestCount}`}
+                className="inline-flex items-center justify-center gap-1.5 bg-red-600 hover:bg-red-700 text-white text-xs font-semibold px-4 py-2.5 rounded-xl transition shrink-0"
+              >
+                <RotateCcw size={14} /> Pesan Ulang Kamar
+              </Link>
             </div>
           )}
         </div>
@@ -357,7 +532,7 @@ const Payment: React.FC = () => {
             </div>
           </div>
 
-          {/* Right: Payment Summary & Gateway Trigger */}
+          {/* Right: Payment Summary & Midtrans Snap Trigger */}
           <div className="lg:col-span-5 bg-white rounded-3xl p-6 shadow-lg border border-stone-200/80 space-y-5">
             <h2 className="font-serif text-xl font-bold text-ink flex items-center gap-2 border-b border-stone-100 pb-4">
               <CreditCard size={20} className="text-sage-dark" />
@@ -384,11 +559,28 @@ const Payment: React.FC = () => {
                 </span>
               </div>
               <div className="flex justify-between text-ink/75">
-                <span>Status Tagihan</span>
-                <span className="font-semibold text-amber-700">
+                <span>Status Pembayaran</span>
+                <span
+                  className={`font-semibold ${
+                    reservation.payment?.status === 'Settlement'
+                      ? 'text-emerald-700'
+                      : reservation.payment?.status === 'Expire' ||
+                        reservation.payment?.status === 'Cancel'
+                      ? 'text-red-600'
+                      : 'text-amber-700'
+                  }`}
+                >
                   {reservation.payment?.status || 'Pending'}
                 </span>
               </div>
+              {reservation.payment?.paymentType && (
+                <div className="flex justify-between text-ink/75">
+                  <span>Metode Bayar</span>
+                  <span className="font-semibold text-ink uppercase">
+                    {reservation.payment.paymentType.replace(/_/g, ' ')}
+                  </span>
+                </div>
+              )}
 
               <div className="pt-3 border-t border-stone-200 flex items-baseline justify-between">
                 <span className="text-base font-bold text-wood">Total Tagihan</span>
@@ -398,23 +590,78 @@ const Payment: React.FC = () => {
               </div>
             </div>
 
-            <div className="bg-cream rounded-2xl p-4 border border-stone-200/80 text-xs text-ink/80 space-y-2">
-              <p className="font-semibold text-wood">
-                Integrasi Payment Gateway (Midtrans Sandbox)
-              </p>
-              <p>
-                Data reservasi (<code className="font-mono">{reservation.bookingCode}</code>)
-                dan tagihan berstatus <strong>Pending</strong> telah berhasil dikunci di
-                database. Tombol pembayaran interaktif Midtrans Snap akan aktif pada{' '}
-                <strong>Milestone 5 (M5)</strong> setelah kredensial{' '}
-                <code className="font-mono">MIDTRANS_SERVER_KEY</code> &{' '}
-                <code className="font-mono">MIDTRANS_CLIENT_KEY</code> dipasang.
-              </p>
-            </div>
+            {payErrorMsg && (
+              <div className="flex items-start gap-2 bg-red-50 text-red-600 text-xs font-medium p-3.5 rounded-2xl">
+                <AlertCircle size={16} className="shrink-0 mt-0.5" />
+                <span>{payErrorMsg}</span>
+              </div>
+            )}
+
+            {/* Payment Action Buttons for Pending Reservation */}
+            {isPending && !isExpiredTimer && (
+              <div className="space-y-3 pt-1">
+                <button
+                  type="button"
+                  disabled={paying}
+                  onClick={handlePayNow}
+                  className="w-full flex items-center justify-center gap-2 bg-sage-dark hover:bg-wood disabled:bg-stone-300 text-white font-semibold py-4 px-6 rounded-2xl transition shadow-md text-sm"
+                >
+                  {paying ? (
+                    <>
+                      <Loader2 size={18} className="animate-spin" />
+                      <span>Menyiapkan Pembayaran Midtrans...</span>
+                    </>
+                  ) : (
+                    <>
+                      <CreditCard size={18} />
+                      <span>Bayar Sekarang via Midtrans</span>
+                    </>
+                  )}
+                </button>
+
+                {redirectUrlFallback && (
+                  <a
+                    href={redirectUrlFallback}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="w-full inline-flex items-center justify-center gap-1.5 bg-cream hover:bg-stone-200/70 text-wood text-xs font-semibold py-2.5 px-4 rounded-xl border border-stone-200 transition"
+                  >
+                    <span>Buka Halaman Pembayaran di Tab Baru</span>
+                    <ExternalLink size={13} />
+                  </a>
+                )}
+
+                <p className="text-[11px] text-ink/60 text-center">
+                  Halaman ini otomatis memeriksa pembaruan status pembayaran setiap 5 detik.
+                </p>
+              </div>
+            )}
+
+            {isConfirmed && (
+              <div className="bg-emerald-50 border border-emerald-200/80 rounded-2xl p-4 text-center space-y-2">
+                <CheckCircle2 size={26} className="mx-auto text-emerald-600" />
+                <p className="text-xs font-semibold text-emerald-900">
+                  Tagihan Lunas (Settlement)
+                </p>
+                <p className="text-[11px] text-emerald-800">
+                  Kamar Anda telah terkonfirmasi untuk tanggal yang dipilih.
+                </p>
+              </div>
+            )}
+
+            {isCancelled && (
+              <Link
+                to={`/rooms/${reservation.roomId}?check_in=${reservation.checkInDate}&check_out=${reservation.checkOutDate}&guests=${reservation.guestCount}`}
+                className="w-full flex items-center justify-center gap-2 bg-wood hover:bg-sage-dark text-white font-semibold py-3.5 px-5 rounded-2xl transition text-sm"
+              >
+                <RotateCcw size={16} />
+                <span>Pesan Ulang Kamar Ini</span>
+              </Link>
+            )}
 
             <div className="flex items-center justify-center gap-1.5 text-[11px] text-ink/60 pt-1 text-center">
               <ShieldCheck size={14} className="text-sage-dark shrink-0" />
-              <span>Transaksi aman & terverifikasi otomatis oleh sistem</span>
+              <span>Didukung oleh Midtrans Payment Gateway (Sandbox)</span>
             </div>
           </div>
         </div>
