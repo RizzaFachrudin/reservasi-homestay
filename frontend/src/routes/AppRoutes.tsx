@@ -6,6 +6,7 @@ import Home from '../pages/public/Home';
 import Rooms from '../pages/public/Rooms';
 import RoomDetail from '../pages/public/RoomDetail';
 import Booking from '../pages/guest/Booking';
+import Payment from '../pages/guest/Payment';
 import { ProtectedRoute } from './ProtectedRoute';
 import AdminDashboard from '../pages/admin/Dashboard';
 import AdminRooms from '../pages/admin/Rooms';
@@ -31,6 +32,11 @@ export const AppRoutes = () => {
         <Route path="/booking/:roomId" element={
           <ProtectedRoute roles={['Guest', 'Admin']}>
             <Booking />
+          </ProtectedRoute>
+        } />
+        <Route path="/payment/:reservationId" element={
+          <ProtectedRoute roles={['Guest', 'Admin']}>
+            <Payment />
           </ProtectedRoute>
         } />
         <Route path="/reservations" element={
