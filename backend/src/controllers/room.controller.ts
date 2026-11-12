@@ -36,6 +36,97 @@ export class RoomController {
     }
   }
 
+  // Public: Search available rooms by date range and guests (SF-4, BR-02, BR-03, BR-04)
+  async getAvailableRooms(req: Request, res: Response): Promise<void> {
+    try {
+      const checkIn = String(req.query.check_in || req.query.checkIn || '').trim();
+      const checkOut = String(req.query.check_out || req.query.checkOut || '').trim();
+      const guestsParam = req.query.guests !== undefined ? Number(req.query.guests) : 1;
+
+      const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+      if (!checkIn || !checkOut || !dateRegex.test(checkIn) || !dateRegex.test(checkOut)) {
+        res.status(400).json(
+          formatErrorResponse('Tanggal check-in dan check-out wajib diisi dengan format YYYY-MM-DD', {
+            check_in: 'Format tanggal check-in harus YYYY-MM-DD',
+            check_out: 'Format tanggal check-out harus YYYY-MM-DD',
+          })
+        );
+        return;
+      }
+
+      const checkInTime = Date.parse(`${checkIn}T00:00:00.000Z`);
+      const checkOutTime = Date.parse(`${checkOut}T00:00:00.000Z`);
+      if (Number.isNaN(checkInTime) || Number.isNaN(checkOutTime)) {
+        res.status(400).json(formatErrorResponse('Tanggal check-in atau check-out tidak valid'));
+        return;
+      }
+
+      // Allow today in either UTC or local timezone
+      const now = new Date();
+      const yesterdayUtc = new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+      if (checkIn <= yesterdayUtc) {
+        res.status(400).json(
+          formatErrorResponse('Tanggal check-in tidak boleh di masa lampau', {
+            check_in: 'Tanggal check-in minimal hari ini',
+          })
+        );
+        return;
+      }
+
+      if (checkOut <= checkIn) {
+        res.status(400).json(
+          formatErrorResponse('Tanggal check-out harus setelah tanggal check-in', {
+            check_out: 'Tanggal check-out harus lebih besar dari tanggal check-in',
+          })
+        );
+        return;
+      }
+
+      if (!Number.isInteger(guestsParam) || guestsParam < 1) {
+        res.status(400).json(
+          formatErrorResponse('Jumlah tamu minimal 1 orang', {
+            guests: 'Jumlah tamu harus angka bulat minimal 1',
+          })
+        );
+        return;
+      }
+
+      const rooms = await roomService.getAvailableRooms(checkIn, checkOut, guestsParam);
+      res.status(200).json(formatSuccessResponse(rooms, 'Daftar kamar tersedia berhasil diambil'));
+    } catch (error) {
+      console.error('Error searching available rooms:', error);
+      res.status(500).json(formatErrorResponse('Gagal mencari ketersediaan kamar'));
+    }
+  }
+
+  // Public: Get room availability calendar for a specific month (SF-4, SF-5)
+  async getRoomAvailability(req: Request, res: Response): Promise<void> {
+    try {
+      const { id } = req.params;
+      const now = new Date();
+      const defaultMonth = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}`;
+      const month = req.query.month ? String(req.query.month).trim() : defaultMonth;
+
+      if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(month)) {
+        res.status(400).json(
+          formatErrorResponse('Format bulan tidak valid. Gunakan format YYYY-MM', {
+            month: 'Format bulan harus YYYY-MM (contoh: 2026-11)',
+          })
+        );
+        return;
+      }
+
+      const availability = await roomService.getRoomAvailabilityByMonth(id, month);
+      res.status(200).json(formatSuccessResponse(availability, 'Data kalender ketersediaan kamar berhasil diambil'));
+    } catch (error) {
+      if (error instanceof Error && error.message === 'ROOM_NOT_FOUND_OR_UNAVAILABLE') {
+        res.status(404).json(formatErrorResponse('Kamar tidak tersedia atau tidak ditemukan'));
+        return;
+      }
+      res.status(500).json(formatErrorResponse('Gagal mengambil kalender ketersediaan kamar'));
+    }
+  }
+
   // Public: Get room detail
   async getPublicRoomById(req: Request, res: Response): Promise<void> {
     try {

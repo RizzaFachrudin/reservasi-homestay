@@ -82,6 +82,10 @@ export class RoomService {
    * Public detail of a room
    */
   async getPublicRoomById(id: string) {
+    if (!/^\d+$/.test(id)) {
+      throw new Error('ROOM_NOT_FOUND_OR_UNAVAILABLE');
+    }
+
     const room = await prisma.room.findFirst({
       where: {
         id: BigInt(id),
@@ -103,6 +107,135 @@ export class RoomService {
     }
 
     return this.formatRoom(room);
+  }
+
+  /**
+   * Public search for available rooms by date range and guest count (SF-4, BR-03, BR-04, BR-05)
+   */
+  async getAvailableRooms(checkInStr: string, checkOutStr: string, guests: number) {
+    const checkInDate = new Date(`${checkInStr}T00:00:00.000Z`);
+    const checkOutDate = new Date(`${checkOutStr}T00:00:00.000Z`);
+
+    const nights = Math.round(
+      (checkOutDate.getTime() - checkInDate.getTime()) / (1000 * 60 * 60 * 24)
+    );
+
+    const rooms = await prisma.room.findMany({
+      where: {
+        deletedAt: null,
+        status: RoomStatus.Available,
+        capacity: {
+          gte: guests,
+        },
+        reservations: {
+          none: {
+            status: {
+              in: ['Pending', 'Confirmed', 'Checked_in'],
+            },
+            checkInDate: {
+              lt: checkOutDate,
+            },
+            checkOutDate: {
+              gt: checkInDate,
+            },
+          },
+        },
+      },
+      include: {
+        images: {
+          orderBy: { isPrimary: 'desc' },
+        },
+        facilities: {
+          include: { facility: true },
+        },
+      },
+      orderBy: { pricePerNight: 'asc' },
+    });
+
+    return rooms.map((room) => {
+      const formatted = this.formatRoom(room);
+      return {
+        ...formatted,
+        nights,
+        totalPrice: formatted.pricePerNight * nights,
+      };
+    });
+  }
+
+  /**
+   * Public room availability calendar per month (SF-4, SF-5, BR-04, BR-18)
+   */
+  async getRoomAvailabilityByMonth(id: string, monthStr: string) {
+    if (!/^\d+$/.test(id)) {
+      throw new Error('ROOM_NOT_FOUND_OR_UNAVAILABLE');
+    }
+
+    const room = await prisma.room.findFirst({
+      where: {
+        id: BigInt(id),
+        deletedAt: null,
+        status: RoomStatus.Available,
+      },
+      select: { id: true },
+    });
+
+    if (!room) {
+      throw new Error('ROOM_NOT_FOUND_OR_UNAVAILABLE');
+    }
+
+    const [yearStr, monStr] = monthStr.split('-');
+    const year = Number(yearStr);
+    const monthIndex = Number(monStr) - 1; // 0-indexed
+
+    const monthStart = new Date(Date.UTC(year, monthIndex, 1));
+    const monthEnd = new Date(Date.UTC(year, monthIndex + 1, 1));
+
+    const reservations = await prisma.reservation.findMany({
+      where: {
+        roomId: BigInt(id),
+        status: {
+          in: ['Pending', 'Confirmed', 'Checked_in'],
+        },
+        checkInDate: {
+          lt: monthEnd,
+        },
+        checkOutDate: {
+          gt: monthStart,
+        },
+      },
+      select: {
+        checkInDate: true,
+        checkOutDate: true,
+      },
+      orderBy: { checkInDate: 'asc' },
+    });
+
+    const bookedDatesSet = new Set<string>();
+
+    for (const res of reservations) {
+      const start = new Date(
+        Math.max(res.checkInDate.getTime(), monthStart.getTime())
+      );
+      const end = new Date(
+        Math.min(res.checkOutDate.getTime(), monthEnd.getTime())
+      );
+
+      const cursor = new Date(start);
+      while (cursor < end) {
+        bookedDatesSet.add(cursor.toISOString().split('T')[0]);
+        cursor.setUTCDate(cursor.getUTCDate() + 1);
+      }
+    }
+
+    return {
+      roomId: id,
+      month: monthStr,
+      bookedDates: Array.from(bookedDatesSet).sort(),
+      reservations: reservations.map((r) => ({
+        checkInDate: r.checkInDate.toISOString().split('T')[0],
+        checkOutDate: r.checkOutDate.toISOString().split('T')[0],
+      })),
+    };
   }
 
   /**
