@@ -20,6 +20,18 @@ export interface Room {
   images: RoomImage[];
   primaryImage: string | null;
   facilities: Facility[];
+  nights?: number;
+  totalPrice?: number;
+}
+
+export interface RoomAvailabilityResponse {
+  roomId: string;
+  month: string;
+  bookedDates: string[];
+  reservations: {
+    checkInDate: string;
+    checkOutDate: string;
+  }[];
 }
 
 export interface RoomPayload {
@@ -47,6 +59,28 @@ export const roomService = {
 
   getPublicRoomById: async (id: string): Promise<Room> => {
     const res = await apiService.get<ApiResponse<Room>>(`/rooms/${id}`);
+    return res.data;
+  },
+
+  getAvailableRooms: async (params: {
+    check_in: string;
+    check_out: string;
+    guests?: number | string;
+  }): Promise<Room[]> => {
+    const query = new URLSearchParams({
+      check_in: params.check_in,
+      check_out: params.check_out,
+      ...(params.guests ? { guests: String(params.guests) } : {}),
+    });
+    const res = await apiService.get<ApiResponse<Room[]>>(`/rooms/available?${query.toString()}`);
+    return res.data;
+  },
+
+  getRoomAvailability: async (id: string, month?: string): Promise<RoomAvailabilityResponse> => {
+    const url = month
+      ? `/rooms/${id}/availability?month=${encodeURIComponent(month)}`
+      : `/rooms/${id}/availability`;
+    const res = await apiService.get<ApiResponse<RoomAvailabilityResponse>>(url);
     return res.data;
   },
 

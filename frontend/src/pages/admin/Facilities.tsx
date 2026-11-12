@@ -37,13 +37,13 @@ const POPULAR_ICONS = [
   { name: 'sparkles', label: 'Fasilitas Lain', icon: Sparkles },
 ];
 
-export const getFacilityIcon = (iconName?: string | null) => {
+export const getFacilityIcon = (iconName?: string | null, size: number = 18) => {
   const found = POPULAR_ICONS.find((i) => i.name.toLowerCase() === iconName?.toLowerCase());
   if (found) {
     const IconComp = found.icon;
-    return <IconComp size={18} />;
+    return <IconComp size={size} />;
   }
-  return <Sparkles size={18} />;
+  return <Sparkles size={size} />;
 };
 
 const Facilities: React.FC = () => {

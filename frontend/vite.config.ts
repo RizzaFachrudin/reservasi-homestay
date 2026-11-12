@@ -20,6 +20,10 @@ export default defineConfig({
         target: 'http://backend:5000', // Use Docker service name
         changeOrigin: true,
       },
+      '/uploads': {
+        target: 'http://backend:5000',
+        changeOrigin: true,
+      },
     },
   },
 });
