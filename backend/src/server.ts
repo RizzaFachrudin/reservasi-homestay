@@ -5,6 +5,7 @@ import dotenv from 'dotenv';
 import authRoutes from './routes/auth.routes';
 import facilityRoutes from './routes/facility.routes';
 import roomRoutes from './routes/room.routes';
+import reservationRoutes from './routes/reservation.routes';
 import adminRoutes from './routes/admin.routes';
 
 // Fix BigInt serialization for JSON responses
@@ -34,6 +35,7 @@ app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
 app.use('/api/auth', authRoutes);
 app.use('/api/facilities', facilityRoutes);
 app.use('/api/rooms', roomRoutes);
+app.use('/api/reservations', reservationRoutes);
 app.use('/api/admin', adminRoutes);
 
 // Health check route
