@@ -90,3 +90,24 @@ Content-Type: application/json
     "status": "Available",
     "facilityIds": [1, 2]
 }
+
+### 14. Guest - Create Reservation with Row Lock (M4 - SF-6, BR-07)
+# @name createReservation
+POST {{baseUrl}}/reservations
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+    "room_id": 1,
+    "check_in_date": "2026-12-20",
+    "check_out_date": "2026-12-22",
+    "guest_count": 2
+}
+
+### 15. Guest - Get My Reservations (M4/M6 - SF-8)
+GET {{baseUrl}}/reservations/me
+Authorization: Bearer {{token}}
+
+### 16. Guest - Get Reservation Detail by ID (M4/M6 - SF-6, BR-15)
+GET {{baseUrl}}/reservations/1
+Authorization: Bearer {{token}}

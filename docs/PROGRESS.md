@@ -522,12 +522,12 @@
 | SF-09 | Availability Check & Overlap Detection | ✅ DONE | `GET /api/rooms/available` & `GET /api/rooms/:id/availability` (BR-03, BR-04, BR-05, BR-18) |
 | SF-10 | Booking Preview & Protected Gate | ✅ DONE | Halaman `/booking/:roomId` terproteksi untuk uji alur `?redirect=` (siap dilanjutkan transaksi DB di M4) |
 
-### Milestone 4 (M4): Guest Management ❌
+### Milestone 4 (M4): Pemesanan / Booking Engine & Concurrency Control ✅
 
 | No | System Feature | Status | Keterangan |
 |----|----------------|--------|------------|
-| SF-11 | View My Reservations | 🟡 PLACEHOLDER | Route ada, halaman kosong |
-| SF-12 | Reservation Detail | ❌ NOT STARTED | Backend + Frontend belum |
+| SF-06 | Pemesanan Kamar (Booking Engine & Row Lock) | ✅ DONE | `POST /api/reservations` dengan `SELECT ... FOR UPDATE` (BR-07), `booking_code` `HSR-YYYYMMDD-XXXX` (BR-06), transaksi DB otomatis dengan `payments` (`Pending`), halaman `/booking/:roomId` & `/payment/:reservationId` dengan countdown 60 menit (BR-08) |
+| SF-11 | View My Reservations & Detail Endpoint | ✅ DONE | Backend `GET /api/reservations/me` & `GET /api/reservations/:id` dengan otorisasi pemilik (BR-15) |
 
 ### Milestone 5 (M5): Payment Integration ❌
 
@@ -572,10 +572,10 @@
 - **M1:** ✅ 100% (4/4 features done)
 - **M2:** ✅ 100% (3/3 features done)
 - **M3:** ✅ 100% (3/3 features done)
-- **M4:** ❌ 0% (0/2 features)
+- **M4:** ✅ 100% (2/2 features done)
 - **M5:** ❌ 0% (0/3 features)
 - **M6:** ❌ 0% (0/2 features)
-- **Total:** 58.8% (10/17 features completed)
+- **Total:** 70.6% (12/17 features completed)
 
 ---
 
