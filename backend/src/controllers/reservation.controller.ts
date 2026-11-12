@@ -253,6 +253,61 @@ export class ReservationController {
       sendError(res, 'Gagal membuat dokumen invoice PDF', 500);
     }
   }
+
+  /**
+   * POST /api/reservations/:id/cancel
+   * Manually cancel a Pending reservation by the guest/owner
+   */
+  async cancelReservation(req: Request, res: Response): Promise<void> {
+    try {
+      if (!req.user) {
+        sendError(res, 'Autentikasi diperlukan', 401);
+        return;
+      }
+
+      const { id } = req.params;
+      const updated = await reservationService.cancelReservation(
+        id,
+        req.user.userId,
+        req.user.role
+      );
+
+      sendSuccess(
+        res,
+        'Pesanan berhasil dibatalkan dan kuota kamar telah dilepas kembali.',
+        updated
+      );
+    } catch (error: any) {
+      const msg = error?.message || '';
+
+      if (msg === 'RESERVATION_NOT_FOUND') {
+        sendError(res, 'Data reservasi tidak ditemukan', 404);
+        return;
+      }
+
+      if (msg === 'FORBIDDEN_RESERVATION_ACCESS') {
+        sendError(
+          res,
+          'Anda tidak memiliki akses untuk membatalkan reservasi milik pengguna lain',
+          403
+        );
+        return;
+      }
+
+      if (msg.startsWith('CANNOT_CANCEL_NON_PENDING:')) {
+        const currentStatus = msg.split(':')[1] || '';
+        sendError(
+          res,
+          `Hanya pesanan yang masih Menunggu Pembayaran (Pending) yang dapat dibatalkan secara manual (status saat ini: ${currentStatus})`,
+          400
+        );
+        return;
+      }
+
+      console.error('Error cancelling reservation:', error);
+      sendError(res, 'Gagal membatalkan pesanan', 500);
+    }
+  }
 }
 
 export default new ReservationController();

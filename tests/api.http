@@ -116,6 +116,10 @@ Authorization: Bearer {{token}}
 GET {{baseUrl}}/reservations/1/invoice
 Authorization: Bearer {{token}}
 
+### 16c. Guest - Manually Cancel Pending Reservation (M6 - SF-8, BR-08)
+POST {{baseUrl}}/reservations/1/cancel
+Authorization: Bearer {{token}}
+
 ### 17. Guest - Initiate / Reuse Midtrans Snap Payment (M5 - SF-7)
 POST {{baseUrl}}/reservations/1/pay
 Authorization: Bearer {{token}}

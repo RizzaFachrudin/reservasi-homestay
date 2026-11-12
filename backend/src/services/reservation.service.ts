@@ -46,9 +46,17 @@ export class ReservationService {
       res.room?.images?.[0]?.imagePath ||
       null;
 
+    // Only reveal check-in bookingCode once payment is Settlement / reservation is Confirmed+
+    const isBookingCodeRevealed =
+      res.status === 'Confirmed' ||
+      res.status === 'Checked_in' ||
+      res.status === 'Checked-in' ||
+      res.status === 'Completed' ||
+      res.payment?.status === 'Settlement';
+
     return {
       id: res.id.toString(),
-      bookingCode: res.bookingCode,
+      bookingCode: isBookingCodeRevealed ? res.bookingCode : null,
       userId: res.userId.toString(),
       roomId: res.roomId.toString(),
       checkInDate: checkInStr,
@@ -318,6 +326,85 @@ export class ReservationService {
     }
 
     return this.formatReservation(reservation);
+  }
+
+  /**
+   * Manually cancel a Pending reservation by the guest/owner
+   * Releases the room immediately and sets reservation -> Cancelled, payment -> Cancel
+   */
+  async cancelReservation(
+    id: string,
+    requesterUserId: string,
+    requesterRole: string
+  ) {
+    if (!/^\d+$/.test(id)) {
+      throw new Error('RESERVATION_NOT_FOUND');
+    }
+
+    const reservation = await prisma.reservation.findUnique({
+      where: { id: BigInt(id) },
+      include: {
+        payment: true,
+      },
+    });
+
+    if (!reservation) {
+      throw new Error('RESERVATION_NOT_FOUND');
+    }
+
+    if (requesterRole !== 'Admin' && reservation.userId.toString() !== requesterUserId) {
+      throw new Error('FORBIDDEN_RESERVATION_ACCESS');
+    }
+
+    if (reservation.status !== 'Pending') {
+      throw new Error(`CANNOT_CANCEL_NON_PENDING:${reservation.status}`);
+    }
+
+    const updated = await prisma.$transaction(async (tx) => {
+      const fresh = await tx.reservation.findUnique({
+        where: { id: reservation.id },
+        include: { payment: true },
+      });
+
+      if (!fresh || fresh.status !== 'Pending') {
+        throw new Error(`CANNOT_CANCEL_NON_PENDING:${fresh?.status || 'Unknown'}`);
+      }
+
+      if (fresh.payment) {
+        await tx.payment.update({
+          where: { id: fresh.payment.id },
+          data: { status: 'Cancel' },
+        });
+      }
+
+      return tx.reservation.update({
+        where: { id: reservation.id },
+        data: { status: 'Cancelled' },
+        include: {
+          user: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              phoneNumber: true,
+            },
+          },
+          room: {
+            include: {
+              images: {
+                orderBy: { isPrimary: 'desc' },
+              },
+              facilities: {
+                include: { facility: true },
+              },
+            },
+          },
+          payment: true,
+        },
+      });
+    });
+
+    return this.formatReservation(updated);
   }
 }
 
