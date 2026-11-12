@@ -275,7 +275,7 @@ const ReservationDetail: React.FC = () => {
                     <span className="font-serif text-lg font-bold text-ink mt-1 block">
                       {formatDateID(reservation.checkInDate)}
                     </span>
-                    <span className="text-xs text-ink/60">Mulai pukul 14:00 WIB</span>
+                    <span className="text-xs text-ink/60">Mulai pukul 13:00 WIB</span>
                   </div>
 
                   <div className="bg-cream/70 p-4 rounded-2xl border border-stone-200/60">
@@ -285,7 +285,7 @@ const ReservationDetail: React.FC = () => {
                     <span className="font-serif text-lg font-bold text-ink mt-1 block">
                       {formatDateID(reservation.checkOutDate)}
                     </span>
-                    <span className="text-xs text-ink/60">Maksimal pukul 12:00 WIB</span>
+                    <span className="text-xs text-ink/60">Pukul 11:00–12:00 WIB</span>
                   </div>
                 </div>
 

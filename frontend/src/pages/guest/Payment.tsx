@@ -548,14 +548,14 @@ const Payment: React.FC = () => {
                   <span className="text-sm font-bold text-ink mt-0.5 block">
                     {formatDateID(reservation.checkInDate)}
                   </span>
-                  <span className="text-[11px] text-ink/60">Mulai pukul 14:00 WIB</span>
+                  <span className="text-[11px] text-ink/60">Mulai pukul 13:00 WIB</span>
                 </div>
                 <div className="bg-cream/60 p-4 rounded-2xl border border-stone-200/50">
                   <span className="block text-xs text-wood font-semibold">Check-out</span>
                   <span className="text-sm font-bold text-ink mt-0.5 block">
                     {formatDateID(reservation.checkOutDate)}
                   </span>
-                  <span className="text-[11px] text-ink/60">Maksimal pukul 12:00 WIB</span>
+                  <span className="text-[11px] text-ink/60">Pukul 11:00–12:00 WIB</span>
                 </div>
               </div>
 

@@ -36,6 +36,48 @@ export interface Reservation {
   };
   room?: Room;
   payment?: PaymentInfo | null;
+  eligibility?: CheckInEligibility;
+}
+
+export interface CheckInEligibility {
+  canCheckIn: boolean;
+  canCheckOut: boolean;
+  code:
+    | 'ELIGIBLE'
+    | 'ALREADY_CHECKED_IN'
+    | 'ALREADY_COMPLETED'
+    | 'RESERVATION_CANCELLED'
+    | 'PAYMENT_NOT_SETTLED'
+    | 'CHECKIN_DATE_TOO_EARLY'
+    | 'CHECKIN_DATE_PASSED'
+    | string;
+  reason: string | null;
+  todayWib: string;
+}
+
+export interface AdminReservationsResponse {
+  items: Reservation[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+  summary: {
+    total: number;
+    pending: number;
+    confirmed: number;
+    checkedIn: number;
+    completed: number;
+    cancelled: number;
+    arrivingToday: number;
+  };
+  todayWib: string;
+}
+
+export interface CheckInLookupResponse {
+  reservation: Reservation;
+  eligibility: CheckInEligibility;
 }
 
 export interface CreateReservationPayload {
@@ -131,5 +173,58 @@ export const reservationService = {
     link.click();
     link.remove();
     window.URL.revokeObjectURL(url);
+  },
+
+  // --- Admin M7 Endpoints (SF-15, SF-16, BR-10, BR-11) ---
+
+  getAdminReservations: async (params?: {
+    status?: string;
+    from?: string;
+    to?: string;
+    search?: string;
+    page?: number;
+    limit?: number;
+  }): Promise<AdminReservationsResponse> => {
+    const query = new URLSearchParams();
+    if (params?.status && params.status !== 'All') query.set('status', params.status);
+    if (params?.from) query.set('from', params.from);
+    if (params?.to) query.set('to', params.to);
+    if (params?.search) query.set('search', params.search);
+    if (params?.page) query.set('page', String(params.page));
+    if (params?.limit) query.set('limit', String(params.limit));
+
+    const qs = query.toString();
+    const res = await apiService.get<ApiResponse<AdminReservationsResponse>>(
+      `/admin/reservations${qs ? `?${qs}` : ''}`
+    );
+    return res.data;
+  },
+
+  getAdminReservationById: async (id: string): Promise<Reservation> => {
+    const res = await apiService.get<ApiResponse<Reservation>>(
+      `/admin/reservations/${id}`
+    );
+    return res.data;
+  },
+
+  lookupCheckIn: async (code: string): Promise<CheckInLookupResponse> => {
+    const res = await apiService.get<ApiResponse<CheckInLookupResponse>>(
+      `/admin/checkin/lookup?code=${encodeURIComponent(code.trim())}`
+    );
+    return res.data;
+  },
+
+  checkInReservation: async (id: string): Promise<CheckInLookupResponse> => {
+    const res = await apiService.post<ApiResponse<CheckInLookupResponse>>(
+      `/admin/reservations/${id}/check-in`
+    );
+    return res.data;
+  },
+
+  checkOutReservation: async (id: string): Promise<CheckInLookupResponse> => {
+    const res = await apiService.post<ApiResponse<CheckInLookupResponse>>(
+      `/admin/reservations/${id}/check-out`
+    );
+    return res.data;
   },
 };

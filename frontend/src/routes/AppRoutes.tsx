@@ -14,6 +14,8 @@ import AdminDashboard from '../pages/admin/Dashboard';
 import AdminRooms from '../pages/admin/Rooms';
 import AdminRoomGallery from '../pages/admin/RoomGallery';
 import AdminFacilities from '../pages/admin/Facilities';
+import AdminReservations from '../pages/admin/Reservations';
+import AdminCheckIn from '../pages/admin/CheckIn';
 
 export const AppRoutes = () => {
   return (
@@ -68,6 +70,16 @@ export const AppRoutes = () => {
         <Route path="/admin/facilities" element={
           <ProtectedRoute roles={['Admin']}>
             <AdminFacilities />
+          </ProtectedRoute>
+        } />
+        <Route path="/admin/reservations" element={
+          <ProtectedRoute roles={['Admin']}>
+            <AdminReservations />
+          </ProtectedRoute>
+        } />
+        <Route path="/admin/checkin" element={
+          <ProtectedRoute roles={['Admin']}>
+            <AdminCheckIn />
           </ProtectedRoute>
         } />
       </Routes>

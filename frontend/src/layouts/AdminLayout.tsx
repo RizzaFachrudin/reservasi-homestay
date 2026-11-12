@@ -34,8 +34,8 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children, title, subtitle }) 
     { to: '/admin', label: 'Dashboard', icon: LayoutDashboard, end: true },
     { to: '/admin/rooms', label: 'Kelola Kamar', icon: BedDouble },
     { to: '/admin/facilities', label: 'Kelola Fasilitas', icon: Sparkles },
-    { to: '/admin/reservations', label: 'Reservasi Masuk', icon: CalendarDays, comingSoon: true },
-    { to: '/admin/checkin', label: 'Check-in & Check-out', icon: UserCheck, comingSoon: true },
+    { to: '/admin/reservations', label: 'Reservasi Masuk', icon: CalendarDays },
+    { to: '/admin/checkin', label: 'Check-in & Check-out', icon: UserCheck },
     { to: '/admin/reports', label: 'Laporan Pendapatan', icon: FileBarChart, comingSoon: true },
   ];
 

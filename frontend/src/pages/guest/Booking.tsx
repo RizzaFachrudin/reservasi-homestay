@@ -283,7 +283,7 @@ const Booking: React.FC = () => {
                     className="w-full bg-transparent text-ink text-sm font-bold focus:outline-none"
                   />
                   <span className="block text-[11px] text-ink/60 mt-1">
-                    {checkIn ? formatDateID(checkIn) : 'Pilih tanggal masuk'} • Mulai 14:00 WIB
+                    {checkIn ? formatDateID(checkIn) : 'Pilih tanggal masuk'} • Mulai 13:00 WIB
                   </span>
                 </label>
 
@@ -304,7 +304,7 @@ const Booking: React.FC = () => {
                     className="w-full bg-transparent text-ink text-sm font-bold focus:outline-none"
                   />
                   <span className="block text-[11px] text-ink/60 mt-1">
-                    {checkOut ? formatDateID(checkOut) : 'Pilih tanggal keluar'} • Maks. 12:00 WIB
+                    {checkOut ? formatDateID(checkOut) : 'Pilih tanggal keluar'} • 11:00–12:00 WIB
                   </span>
                 </label>
               </div>
