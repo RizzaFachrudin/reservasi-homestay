@@ -17,6 +17,7 @@ import GuestLayout from '../../layouts/GuestLayout';
 import { roomService, Room } from '../../services/room.service';
 import { getFacilityIcon } from '../admin/Facilities';
 import { useAuth } from '../../context/AuthContext';
+import RoomStockBadge from '../../components/RoomStockBadge';
 
 const formatRupiah = (n: number) => `Rp ${n.toLocaleString('id-ID')}`;
 
@@ -71,6 +72,7 @@ const RoomDetail: React.FC = () => {
   const initialCheckIn = searchParams.get('check_in') || searchParams.get('checkIn') || '';
   const initialCheckOut = searchParams.get('check_out') || searchParams.get('checkOut') || '';
   const initialGuests = Math.max(1, parseInt(searchParams.get('guests') || '1', 10) || 1);
+  const initialRooms = Math.max(1, parseInt(searchParams.get('rooms') || '1', 10) || 1);
 
   const [room, setRoom] = useState<Room | null>(null);
   const [loading, setLoading] = useState(true);
@@ -81,6 +83,7 @@ const RoomDetail: React.FC = () => {
   const [checkIn, setCheckIn] = useState(initialCheckIn);
   const [checkOut, setCheckOut] = useState(initialCheckOut);
   const [guests, setGuests] = useState(initialGuests);
+  const [roomCount, setRoomCount] = useState(initialRooms);
   const [bookingError, setBookingError] = useState('');
 
   // Calendar state
@@ -100,7 +103,8 @@ const RoomDetail: React.FC = () => {
     }
     return now.getMonth();
   });
-  const [bookedDatesMap, setBookedDatesMap] = useState<Record<string, boolean>>({});
+  // date -> number of free units on that date (from the availability API)
+  const [freeUnitsByDate, setFreeUnitsByDate] = useState<Record<string, number>>({});
   const [loadingCalendar, setLoadingCalendar] = useState(false);
 
   // Fetch room detail
@@ -115,9 +119,9 @@ const RoomDetail: React.FC = () => {
         setRoom(data);
         const fallbackImg = `/images/room-${((Number(data.id) || 1) % 3) + 1}.jpg`;
         setActiveImage(data.primaryImage || data.images?.[0]?.imagePath || fallbackImg);
-        if (guests > data.capacity) {
-          setGuests(data.capacity);
-        }
+        const maxRooms = Math.max(1, data.activeUnits ?? 1);
+        setRoomCount((rc) => Math.min(rc, maxRooms));
+        setGuests((g) => Math.min(g, data.capacity * Math.min(initialRooms, maxRooms)));
       })
       .catch(() => {
         setNotFound(true);
@@ -141,16 +145,11 @@ const RoomDetail: React.FC = () => {
       roomService.getRoomAvailability(id, nextMonthKey),
     ])
       .then(([currRes, nextRes]) => {
-        setBookedDatesMap((prev) => {
-          const updated = { ...prev };
-          currRes.bookedDates.forEach((d) => {
-            updated[d] = true;
-          });
-          nextRes.bookedDates.forEach((d) => {
-            updated[d] = true;
-          });
-          return updated;
-        });
+        setFreeUnitsByDate((prev) => ({
+          ...prev,
+          ...(currRes.availableUnitsByDate || {}),
+          ...(nextRes.availableUnitsByDate || {}),
+        }));
       })
       .catch((err) => {
         console.error('Failed to load room availability calendar:', err);
@@ -178,7 +177,30 @@ const RoomDetail: React.FC = () => {
     return diff > 0 ? diff : 0;
   }, [checkIn, checkOut]);
 
+  const safeRoomCount = Number.isNaN(roomCount) || roomCount < 1 ? 1 : roomCount;
+
+  // A date counts as unavailable when free units < rooms requested
+  const bookedDatesMap = useMemo(() => {
+    const map: Record<string, boolean> = {};
+    Object.entries(freeUnitsByDate).forEach(([d, free]) => {
+      if (free < safeRoomCount) map[d] = true;
+    });
+    return map;
+  }, [freeUnitsByDate, safeRoomCount]);
+
   const stayDates = useMemo(() => getDatesBetween(checkIn, checkOut), [checkIn, checkOut]);
+
+  const availableInStayRange = useMemo(() => {
+    if (!room) return 1;
+    if (stayDates.length === 0) return room.availableUnits ?? room.activeUnits ?? 1;
+    let minFree = room.activeUnits ?? room.totalUnits ?? 1;
+    for (const d of stayDates) {
+      if (freeUnitsByDate[d] !== undefined && freeUnitsByDate[d] < minFree) {
+        minFree = freeUnitsByDate[d];
+      }
+    }
+    return Math.max(0, minFree);
+  }, [room, stayDates, freeUnitsByDate]);
 
   const hasOverlapWithBooked = useMemo(() => {
     return stayDates.some((d) => bookedDatesMap[d]);
@@ -186,8 +208,10 @@ const RoomDetail: React.FC = () => {
 
   const estimatedTotal = useMemo(() => {
     if (!room || stayNights <= 0) return 0;
-    return room.pricePerNight * stayNights;
-  }, [room, stayNights]);
+    return room.pricePerNight * stayNights * safeRoomCount;
+  }, [room, stayNights, safeRoomCount]);
+
+  const maxGuests = room ? room.capacity * safeRoomCount : 0;
 
   // Calendar navigation
   const handlePrevMonth = () => {
@@ -282,8 +306,12 @@ const RoomDetail: React.FC = () => {
       setBookingError('Maaf, terdapat tanggal yang sudah terisi dalam rentang pilihan Anda.');
       return;
     }
-    if (!guests || guests < 1 || guests > room.capacity) {
-      setBookingError(`Jumlah tamu harus antara 1 hingga maksimal ${room.capacity} orang.`);
+    if (!roomCount || roomCount < 1 || roomCount > (room.activeUnits ?? 1)) {
+      setBookingError(`Jumlah kamar harus antara 1 hingga ${room.activeUnits ?? 1} kamar.`);
+      return;
+    }
+    if (!guests || guests < 1 || guests > maxGuests) {
+      setBookingError(`Jumlah tamu harus antara 1 hingga maksimal ${maxGuests} orang untuk ${roomCount} kamar.`);
       return;
     }
 
@@ -291,6 +319,7 @@ const RoomDetail: React.FC = () => {
       check_in: checkIn,
       check_out: checkOut,
       guests: String(guests),
+      rooms: String(roomCount),
     });
     const bookingPath = `/booking/${room.id}?${query.toString()}`;
 
@@ -345,7 +374,7 @@ const RoomDetail: React.FC = () => {
         <Link
           to={
             checkIn && checkOut
-              ? `/rooms?check_in=${checkIn}&check_out=${checkOut}&guests=${guests}`
+              ? `/rooms?check_in=${checkIn}&check_out=${checkOut}&guests=${guests}&rooms=${roomCount}`
               : '/rooms'
           }
           className="inline-flex items-center gap-1.5 text-sm font-semibold text-wood hover:text-sage-dark transition"
@@ -405,8 +434,11 @@ const RoomDetail: React.FC = () => {
                 <div className="flex items-center gap-4 mt-2 text-sm text-ink/75">
                   <span className="inline-flex items-center gap-1.5 font-medium">
                     <Users size={16} className="text-sage-dark" /> Kapasitas Maksimal:{' '}
-                    <strong className="text-ink">{room.capacity} Tamu</strong>
+                    <strong className="text-ink">{room.capacity} Tamu / kamar</strong>
                   </span>
+                </div>
+                <div className="mt-3">
+                  <RoomStockBadge room={room} />
                 </div>
               </div>
               <div className="text-left sm:text-right">
@@ -466,7 +498,7 @@ const RoomDetail: React.FC = () => {
                   Kalender Ketersediaan Kamar
                 </h2>
                 <p className="text-xs text-ink/65 mt-0.5">
-                  Klik tanggal tersedia untuk memilih Check-in dan Check-out. Tanggal bertanda merah sudah dipesan.
+                  Klik tanggal tersedia untuk memilih Check-in dan Check-out. Angka "Sisa" menunjukkan jumlah kamar yang masih kosong; tanggal merah sudah habis.
                 </p>
               </div>
               {checkIn && (
@@ -586,10 +618,18 @@ const RoomDetail: React.FC = () => {
                     }
                   >
                     <span>{day}</span>
-                    {(isCheckIn || isCheckOut) && (
+                    {(isCheckIn || isCheckOut) ? (
                       <span className="text-[9px] leading-none font-normal opacity-90">
                         {isCheckIn ? 'In' : 'Out'}
                       </span>
+                    ) : (
+                      !isPast &&
+                      freeUnitsByDate[dateStr] !== undefined &&
+                      freeUnitsByDate[dateStr] > 0 && (
+                        <span className="text-[9px] leading-none font-normal text-ink/50">
+                          Sisa {freeUnitsByDate[dateStr]}
+                        </span>
+                      )
                     )}
                   </button>
                 );
@@ -608,7 +648,7 @@ const RoomDetail: React.FC = () => {
               </div>
               <div className="flex items-center gap-1.5">
                 <span className="w-3.5 h-3.5 rounded bg-red-100 border border-red-300 inline-block" />
-                <span>Terisi / Dipesan</span>
+                <span>Habis / sisa kamar kurang dari jumlah dipilih</span>
               </div>
             </div>
           </div>
@@ -668,12 +708,30 @@ const RoomDetail: React.FC = () => {
 
               <label className="bg-cream rounded-2xl px-4 py-2.5 block border border-transparent focus-within:border-sage-dark">
                 <span className="block text-[11px] text-wood font-semibold mb-0.5">
-                  Jumlah Tamu (Maks. {room.capacity} orang)
+                  Jumlah Kamar (Tersedia {availableInStayRange} dari {room.totalUnits ?? room.activeUnits ?? 1} kamar)
                 </span>
                 <input
                   type="number"
                   min={1}
-                  max={room.capacity}
+                  max={Math.max(1, room.activeUnits ?? 1)}
+                  value={Number.isNaN(roomCount) ? '' : roomCount}
+                  required
+                  onChange={(e) => {
+                    setRoomCount(parseInt(e.target.value, 10));
+                    setBookingError('');
+                  }}
+                  className="w-full bg-transparent text-ink text-sm font-medium focus:outline-none"
+                />
+              </label>
+
+              <label className="bg-cream rounded-2xl px-4 py-2.5 block border border-transparent focus-within:border-sage-dark">
+                <span className="block text-[11px] text-wood font-semibold mb-0.5">
+                  Jumlah Tamu (Maks. {maxGuests} orang)
+                </span>
+                <input
+                  type="number"
+                  min={1}
+                  max={maxGuests}
                   value={Number.isNaN(guests) ? '' : guests}
                   required
                   onChange={(e) => {
@@ -693,7 +751,7 @@ const RoomDetail: React.FC = () => {
                   </div>
                   <div className="flex items-center justify-between text-xs text-ink/75 pt-1">
                     <span>
-                      {formatRupiah(room.pricePerNight)} × {stayNights} malam
+                      {formatRupiah(room.pricePerNight)} × {stayNights} malam × {safeRoomCount} kamar
                     </span>
                     <span className="font-medium text-ink">
                       {formatRupiah(estimatedTotal)}
@@ -710,7 +768,7 @@ const RoomDetail: React.FC = () => {
                 <div className="flex items-start gap-2 bg-red-50 text-red-600 text-xs font-medium p-3.5 rounded-2xl">
                   <AlertCircle size={16} className="shrink-0 mt-0.5" />
                   <span>
-                    Maaf, satu atau lebih malam pada rentang tanggal yang Anda pilih sudah dipesan. Silakan pilih tanggal lain di kalender.
+                    Maaf, sisa kamar pada satu atau lebih malam di rentang tanggal Anda tidak mencukupi untuk {roomCount} kamar. Kurangi jumlah kamar atau pilih tanggal lain di kalender.
                   </span>
                 </div>
               )}

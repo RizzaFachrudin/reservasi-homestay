@@ -332,6 +332,11 @@ const Reservations: React.FC = () => {
                           {formatDateShortID(res.checkOutDate)} ({res.nights} Malam)
                         </span>
                         <span className="inline-flex items-center gap-1">
+                          <BedDouble size={14} className="text-sage-dark" />
+                          {res.roomCount} Kamar
+                          {res.units && res.units.length > 0 && ` (${res.units.map((u) => u.unitNumber).join(', ')})`}
+                        </span>
+                        <span className="inline-flex items-center gap-1">
                           <Users size={14} className="text-sage-dark" />
                           {res.guestCount} Tamu
                         </span>

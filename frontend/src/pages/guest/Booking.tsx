@@ -47,6 +47,7 @@ const Booking: React.FC = () => {
   const initialCheckIn = searchParams.get('check_in') || searchParams.get('checkIn') || '';
   const initialCheckOut = searchParams.get('check_out') || searchParams.get('checkOut') || '';
   const initialGuests = Math.max(1, parseInt(searchParams.get('guests') || '1', 10) || 1);
+  const initialRooms = Math.max(1, parseInt(searchParams.get('rooms') || '1', 10) || 1);
 
   const [room, setRoom] = useState<Room | null>(null);
   const [loading, setLoading] = useState(true);
@@ -54,6 +55,7 @@ const Booking: React.FC = () => {
   const [checkIn, setCheckIn] = useState(initialCheckIn);
   const [checkOut, setCheckOut] = useState(initialCheckOut);
   const [guests, setGuests] = useState(initialGuests);
+  const [roomCount, setRoomCount] = useState(initialRooms);
 
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
@@ -68,9 +70,10 @@ const Booking: React.FC = () => {
       .getPublicRoomById(roomId)
       .then((data) => {
         setRoom(data);
-        if (guests > data.capacity) {
-          setGuests(data.capacity);
-        }
+        const maxRooms = Math.max(1, data.activeUnits ?? 1);
+        const rc = Math.min(initialRooms, maxRooms);
+        setRoomCount(rc);
+        setGuests((g) => Math.min(g, data.capacity * rc));
       })
       .catch(() => setRoom(null))
       .finally(() => setLoading(false));
@@ -84,10 +87,13 @@ const Booking: React.FC = () => {
     return diff > 0 ? diff : 0;
   }, [checkIn, checkOut]);
 
+  const safeRoomCount = Number.isNaN(roomCount) || roomCount < 1 ? 1 : roomCount;
+  const maxGuests = room ? room.capacity * safeRoomCount : 0;
+
   const totalPrice = useMemo(() => {
     if (!room || stayNights <= 0) return 0;
-    return room.pricePerNight * stayNights;
-  }, [room, stayNights]);
+    return room.pricePerNight * stayNights * safeRoomCount;
+  }, [room, stayNights, safeRoomCount]);
 
   const handleConfirmBooking = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -108,8 +114,12 @@ const Booking: React.FC = () => {
       setErrorMsg('Tanggal check-out harus setelah tanggal check-in (minimal 1 malam).');
       return;
     }
-    if (!guests || guests < 1 || guests > room.capacity) {
-      setErrorMsg(`Jumlah tamu harus antara 1 hingga maksimal ${room.capacity} orang.`);
+    if (!roomCount || roomCount < 1 || roomCount > (room.activeUnits ?? 1)) {
+      setErrorMsg(`Jumlah kamar harus antara 1 hingga ${room.activeUnits ?? 1} kamar.`);
+      return;
+    }
+    if (!guests || guests < 1 || guests > maxGuests) {
+      setErrorMsg(`Jumlah tamu harus antara 1 hingga maksimal ${maxGuests} orang untuk ${roomCount} kamar.`);
       return;
     }
 
@@ -120,6 +130,7 @@ const Booking: React.FC = () => {
         check_in_date: checkIn,
         check_out_date: checkOut,
         guest_count: guests,
+        room_count: roomCount,
       });
 
       // Redirect to payment page with the created reservation ID (SF-6)
@@ -185,7 +196,7 @@ const Booking: React.FC = () => {
       <div className="max-w-5xl mx-auto">
         <div className="mb-6">
           <Link
-            to={`/rooms/${room.id}?check_in=${checkIn}&check_out=${checkOut}&guests=${guests}`}
+            to={`/rooms/${room.id}?check_in=${checkIn}&check_out=${checkOut}&guests=${guests}&rooms=${roomCount}`}
             className="inline-flex items-center gap-1.5 text-sm font-semibold text-wood hover:text-sage-dark transition"
           >
             <ArrowLeft size={16} /> Kembali ke Detail Kamar
@@ -211,7 +222,7 @@ const Booking: React.FC = () => {
               </div>
             </div>
             <Link
-              to={`/rooms?check_in=${checkIn}&check_out=${checkOut}&guests=${guests}`}
+              to={`/rooms?check_in=${checkIn}&check_out=${checkOut}&guests=${guests}&rooms=${roomCount}`}
               className="inline-flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white text-xs sm:text-sm font-semibold px-5 py-3 rounded-2xl transition shrink-0"
             >
               <Search size={16} /> Cari Kamar Lain di Tanggal Ini
@@ -301,16 +312,40 @@ const Booking: React.FC = () => {
               <label className="bg-cream rounded-2xl p-4 block border border-transparent focus-within:border-sage-dark">
                 <div className="flex items-center justify-between mb-1">
                   <span className="text-xs text-wood font-semibold flex items-center gap-1.5">
-                    <Users size={15} className="text-sage-dark" /> Jumlah Tamu
+                    <BedDouble size={15} className="text-sage-dark" /> Jumlah Kamar
                   </span>
                   <span className="text-xs text-ink/60">
-                    Maksimal {room.capacity} orang
+                    Tersedia hingga {room.activeUnits ?? 1} kamar
                   </span>
                 </div>
                 <input
                   type="number"
                   min={1}
-                  max={room.capacity}
+                  max={Math.max(1, room.activeUnits ?? 1)}
+                  value={Number.isNaN(roomCount) ? '' : roomCount}
+                  required
+                  onChange={(e) => {
+                    setRoomCount(parseInt(e.target.value, 10));
+                    setErrorMsg('');
+                    setIsConflictError(false);
+                  }}
+                  className="w-full bg-transparent text-ink text-sm font-bold focus:outline-none"
+                />
+              </label>
+
+              <label className="bg-cream rounded-2xl p-4 block border border-transparent focus-within:border-sage-dark">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-xs text-wood font-semibold flex items-center gap-1.5">
+                    <Users size={15} className="text-sage-dark" /> Jumlah Tamu
+                  </span>
+                  <span className="text-xs text-ink/60">
+                    Maksimal {maxGuests} orang ({safeRoomCount} kamar × {room.capacity})
+                  </span>
+                </div>
+                <input
+                  type="number"
+                  min={1}
+                  max={maxGuests}
                   value={Number.isNaN(guests) ? '' : guests}
                   required
                   onChange={(e) => {
@@ -339,7 +374,7 @@ const Booking: React.FC = () => {
                   {room.name}
                 </h3>
                 <p className="text-xs text-ink/60 mt-0.5">
-                  Kapasitas maks. {room.capacity} tamu
+                  Kapasitas maks. {room.capacity} tamu / kamar
                 </p>
               </div>
             </div>
@@ -373,6 +408,10 @@ const Booking: React.FC = () => {
                 </span>
               </div>
               <div className="flex justify-between text-ink/75">
+                <span>Jumlah Kamar</span>
+                <span className="font-semibold text-ink">{safeRoomCount} Kamar</span>
+              </div>
+              <div className="flex justify-between text-ink/75">
                 <span>Jumlah Tamu</span>
                 <span className="font-semibold text-ink">{guests || 1} Orang</span>
               </div>
@@ -383,7 +422,7 @@ const Booking: React.FC = () => {
                     Total Pembayaran
                   </span>
                   <span className="text-[11px] text-ink/60">
-                    Dihitung otomatis ({stayNights} malam)
+                    Dihitung otomatis ({stayNights} malam × {safeRoomCount} kamar)
                   </span>
                 </div>
                 <span className="text-2xl font-bold text-wood">

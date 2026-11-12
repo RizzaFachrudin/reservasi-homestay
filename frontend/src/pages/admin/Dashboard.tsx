@@ -29,8 +29,10 @@ const Dashboard: React.FC = () => {
     fetchData();
   }, []);
 
-  const availableRoomsCount = rooms.filter((r) => r.status === 'Available').length;
-  const maintenanceRoomsCount = rooms.filter((r) => r.status === 'Maintenance').length;
+  const totalUnitsCount = rooms.reduce((acc, r) => acc + (r.totalUnits ?? 1), 0);
+  const activeUnitsCount = rooms.reduce((acc, r) => acc + (r.activeUnits ?? 1), 0);
+  const availableUnitsCount = rooms.reduce((acc, r) => acc + (r.availableUnits ?? 1), 0);
+  const maintenanceUnitsCount = rooms.reduce((acc, r) => acc + (r.maintenanceUnits ?? 0), 0);
 
   return (
     <AdminLayout title="Dashboard" subtitle="Ringkasan dan manajemen homestay">
@@ -49,15 +51,17 @@ const Dashboard: React.FC = () => {
         <div className="bg-white rounded-2xl p-6 border border-stone-200 shadow-sm">
           <div className="flex items-center justify-between mb-4">
             <span className="text-xs font-semibold text-stone-500 uppercase tracking-wider">
-              Total Kamar
+              Tipe & Total Unit
             </span>
             <div className="w-10 h-10 rounded-xl bg-sage/10 text-sage-dark flex items-center justify-center">
               <BedDouble size={20} />
             </div>
           </div>
-          <p className="text-3xl font-bold text-stone-900">{loading ? '...' : rooms.length}</p>
+          <p className="text-3xl font-bold text-stone-900">
+            {loading ? '...' : `${totalUnitsCount} Unit`}
+          </p>
           <p className="text-xs text-stone-500 mt-1">
-            {availableRoomsCount} aktif, {maintenanceRoomsCount} perbaikan
+            Dari {rooms.length} tipe kamar ({activeUnitsCount} aktif, {maintenanceUnitsCount} perbaikan)
           </p>
         </div>
 
@@ -77,14 +81,16 @@ const Dashboard: React.FC = () => {
         <div className="bg-white rounded-2xl p-6 border border-stone-200 shadow-sm">
           <div className="flex items-center justify-between mb-4">
             <span className="text-xs font-semibold text-stone-500 uppercase tracking-wider">
-              Kamar Siap Huni
+              Unit Siap Huni Hari Ini
             </span>
             <div className="w-10 h-10 rounded-xl bg-green-50 text-green-600 flex items-center justify-center">
               <CheckCircle2 size={20} />
             </div>
           </div>
-          <p className="text-3xl font-bold text-stone-900">{loading ? '...' : availableRoomsCount}</p>
-          <p className="text-xs text-green-600 mt-1">Tersedia untuk reservasi publik</p>
+          <p className="text-3xl font-bold text-stone-900">
+            {loading ? '...' : `${availableUnitsCount} / ${totalUnitsCount}`}
+          </p>
+          <p className="text-xs text-green-600 mt-1">Unit kamar kosong & siap dipesan</p>
         </div>
 
         <div className="bg-white rounded-2xl p-6 border border-stone-200 shadow-sm flex flex-col justify-between">
@@ -135,7 +141,10 @@ const Dashboard: React.FC = () => {
                   <div>
                     <p className="text-sm font-semibold text-stone-800">{r.name}</p>
                     <p className="text-xs text-stone-500">
-                      Rp {r.pricePerNight.toLocaleString('id-ID')} / malam • Kapasitas {r.capacity} orang
+                      Rp {r.pricePerNight.toLocaleString('id-ID')} / malam • {r.capacity} tamu/kamar •{' '}
+                      <span className="font-medium text-stone-700">
+                        {r.availableUnits ?? r.activeUnits ?? 1}/{r.totalUnits ?? 1} unit tersedia
+                      </span>
                     </p>
                   </div>
                   <span

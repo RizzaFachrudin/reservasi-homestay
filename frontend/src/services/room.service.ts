@@ -7,6 +7,13 @@ export interface RoomImage {
   isPrimary: boolean;
 }
 
+export interface RoomUnit {
+  id: string;
+  roomId: string;
+  unitNumber: string;
+  status: 'Available' | 'Maintenance';
+}
+
 export interface Room {
   id: string;
   name: string;
@@ -22,12 +29,21 @@ export interface Room {
   facilities: Facility[];
   nights?: number;
   totalPrice?: number;
+  roomCount?: number;
+  totalUnits?: number;
+  activeUnits?: number;
+  availableUnits?: number;
+  maintenanceUnits?: number;
+  units?: RoomUnit[];
 }
 
 export interface RoomAvailabilityResponse {
   roomId: string;
   month: string;
+  totalUnits?: number;
+  activeUnits?: number;
   bookedDates: string[];
+  availableUnitsByDate?: Record<string, number>;
   reservations: {
     checkInDate: string;
     checkOutDate: string;
@@ -41,6 +57,8 @@ export interface RoomPayload {
   capacity: number;
   status?: 'Available' | 'Maintenance';
   facilityIds?: (string | number)[];
+  totalUnits?: number;
+  unitPrefix?: string;
 }
 
 interface ApiResponse<T> {
@@ -66,11 +84,13 @@ export const roomService = {
     check_in: string;
     check_out: string;
     guests?: number | string;
+    rooms?: number | string;
   }): Promise<Room[]> => {
     const query = new URLSearchParams({
       check_in: params.check_in,
       check_out: params.check_out,
       ...(params.guests ? { guests: String(params.guests) } : {}),
+      ...(params.rooms ? { rooms: String(params.rooms) } : {}),
     });
     const res = await apiService.get<ApiResponse<Room[]>>(`/rooms/available?${query.toString()}`);
     return res.data;
@@ -107,6 +127,25 @@ export const roomService = {
 
   deleteRoom: async (id: string): Promise<void> => {
     await apiService.delete<ApiResponse<null>>(`/admin/rooms/${id}`);
+  },
+
+  addUnit: async (roomId: string, unitNumber: string): Promise<Room> => {
+    const res = await apiService.post<ApiResponse<Room>>(`/admin/rooms/${roomId}/units`, { unitNumber });
+    return res.data;
+  },
+
+  updateUnit: async (
+    roomId: string,
+    unitId: string,
+    payload: { unitNumber?: string; status?: 'Available' | 'Maintenance' }
+  ): Promise<Room> => {
+    const res = await apiService.patch<ApiResponse<Room>>(`/admin/rooms/${roomId}/units/${unitId}`, payload);
+    return res.data;
+  },
+
+  deleteUnit: async (roomId: string, unitId: string): Promise<Room> => {
+    const res = await apiService.delete<ApiResponse<Room>>(`/admin/rooms/${roomId}/units/${unitId}`);
+    return res.data;
   },
 
   uploadRoomImages: async (id: string, formData: FormData): Promise<RoomImage[]> => {

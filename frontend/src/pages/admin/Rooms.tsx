@@ -10,6 +10,8 @@ import {
   CheckCircle2,
   X,
   Users,
+  Layers,
+  Wrench,
 } from 'lucide-react';
 import AdminLayout from '../../layouts/AdminLayout';
 import { roomService, Room } from '../../services/room.service';
@@ -41,6 +43,88 @@ const Rooms: React.FC = () => {
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState('');
 
+  // Unit management state (multi-unit stock per room type)
+  const [formTotalUnits, setFormTotalUnits] = useState<number | string>(1);
+  const [managingRoomId, setManagingRoomId] = useState<string | null>(null);
+  const [newUnitNumber, setNewUnitNumber] = useState('');
+  const [unitBusyId, setUnitBusyId] = useState<string | null>(null);
+  const [unitError, setUnitError] = useState('');
+  const [editingUnitId, setEditingUnitId] = useState<string | null>(null);
+  const [editingUnitNumber, setEditingUnitNumber] = useState('');
+
+  const managingRoom = rooms.find((r) => r.id === managingRoomId) || null;
+
+  const applyUpdatedRoom = (updated: Room) => {
+    setRooms((prev) => prev.map((r) => (r.id === updated.id ? updated : r)));
+  };
+
+  const openUnitsModal = (room: Room) => {
+    setManagingRoomId(room.id);
+    setNewUnitNumber('');
+    setUnitError('');
+    setEditingUnitId(null);
+  };
+
+  const handleAddUnit = async () => {
+    if (!managingRoom || !newUnitNumber.trim()) return;
+    setUnitBusyId('new');
+    setUnitError('');
+    try {
+      applyUpdatedRoom(await roomService.addUnit(managingRoom.id, newUnitNumber.trim()));
+      setNewUnitNumber('');
+    } catch (err: any) {
+      setUnitError(err?.response?.data?.message || err?.message || 'Gagal menambah unit.');
+    } finally {
+      setUnitBusyId(null);
+    }
+  };
+
+  const handleToggleUnitStatus = async (unit: NonNullable<Room['units']>[number]) => {
+    if (!managingRoom) return;
+    setUnitBusyId(unit.id);
+    setUnitError('');
+    try {
+      applyUpdatedRoom(
+        await roomService.updateUnit(managingRoom.id, unit.id, {
+          status: unit.status === 'Available' ? 'Maintenance' : 'Available',
+        })
+      );
+    } catch (err: any) {
+      setUnitError(err?.response?.data?.message || err?.message || 'Gagal mengubah status unit.');
+    } finally {
+      setUnitBusyId(null);
+    }
+  };
+
+  const handleRenameUnit = async (unitId: string) => {
+    if (!managingRoom || !editingUnitNumber.trim()) return;
+    setUnitBusyId(unitId);
+    setUnitError('');
+    try {
+      applyUpdatedRoom(
+        await roomService.updateUnit(managingRoom.id, unitId, { unitNumber: editingUnitNumber.trim() })
+      );
+      setEditingUnitId(null);
+    } catch (err: any) {
+      setUnitError(err?.response?.data?.message || err?.message || 'Gagal mengubah nomor unit.');
+    } finally {
+      setUnitBusyId(null);
+    }
+  };
+
+  const handleDeleteUnit = async (unitId: string) => {
+    if (!managingRoom) return;
+    setUnitBusyId(unitId);
+    setUnitError('');
+    try {
+      applyUpdatedRoom(await roomService.deleteUnit(managingRoom.id, unitId));
+    } catch (err: any) {
+      setUnitError(err?.response?.data?.message || err?.message || 'Gagal menghapus unit.');
+    } finally {
+      setUnitBusyId(null);
+    }
+  };
+
   const fetchData = async () => {
     try {
       setLoading(true);
@@ -69,6 +153,7 @@ const Rooms: React.FC = () => {
     setFormCapacity(2);
     setFormStatus('Available');
     setFormFacilityIds([]);
+    setFormTotalUnits(1);
     setFormError('');
     setIsModalOpen(true);
   };
@@ -114,7 +199,7 @@ const Rooms: React.FC = () => {
     }
 
     try {
-      const payload = {
+      const payload: any = {
         name: formName.trim(),
         description: formDesc.trim() || null,
         pricePerNight: price,
@@ -125,10 +210,17 @@ const Rooms: React.FC = () => {
 
       if (editingRoom) {
         await roomService.updateRoom(editingRoom.id, payload);
-        setSuccessMsg(`Kamar "${formName}" berhasil diperbarui.`);
+        setSuccessMsg(`Tipe kamar "${formName}" berhasil diperbarui.`);
       } else {
+        const totalUnits = Number(formTotalUnits);
+        if (isNaN(totalUnits) || totalUnits < 1 || totalUnits > 100) {
+          setFormError('Jumlah kamar harus antara 1 sampai 100.');
+          setIsSubmitting(false);
+          return;
+        }
+        payload.totalUnits = totalUnits;
         await roomService.createRoom(payload);
-        setSuccessMsg(`Kamar "${formName}" berhasil dibuat.`);
+        setSuccessMsg(`Tipe kamar "${formName}" berhasil dibuat dengan ${totalUnits} unit kamar.`);
       }
 
       setIsModalOpen(false);
@@ -253,6 +345,7 @@ const Rooms: React.FC = () => {
                   <th className="px-6 py-4 w-24">Foto</th>
                   <th className="px-6 py-4">Nama Kamar</th>
                   <th className="px-6 py-4">Kapasitas</th>
+                  <th className="px-6 py-4">Unit Kamar</th>
                   <th className="px-6 py-4">Harga / Malam</th>
                   <th className="px-6 py-4">Fasilitas</th>
                   <th className="px-6 py-4">Status</th>
@@ -288,6 +381,16 @@ const Rooms: React.FC = () => {
                         <Users size={14} /> {room.capacity} orang
                       </span>
                     </td>
+                    <td className="px-6 py-4">
+                      <p className="text-xs font-bold text-stone-900">
+                        {room.totalUnits ?? 0} Unit Total
+                      </p>
+                      <p className="text-[11px] text-stone-500 mt-0.5 whitespace-nowrap">
+                        <span className="text-green-700 font-semibold">{room.activeUnits ?? 0} Available</span>
+                        {' • '}
+                        <span className="text-amber-700 font-semibold">{room.maintenanceUnits ?? 0} Maintenance</span>
+                      </p>
+                    </td>
                     <td className="px-6 py-4 font-bold text-stone-900">
                       Rp {room.pricePerNight.toLocaleString('id-ID')}
                     </td>
@@ -319,7 +422,13 @@ const Rooms: React.FC = () => {
                       </span>
                     </td>
                     <td className="px-6 py-4 text-right space-x-1 whitespace-nowrap">
-                      <Link
+                      <button
+                        onClick={() => openUnitsModal(room)}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-sage-dark bg-sage-dark/10 hover:bg-sage-dark/20 rounded-lg transition"
+                        title="Kelola Unit Kamar"
+                      >
+                        <Layers size={14} /> Kelola Unit
+                      </button>                      <Link
                         to={`/admin/rooms/${room.id}/gallery`}
                         className="inline-flex items-center p-2 text-stone-500 hover:text-sage-dark hover:bg-stone-100 rounded-lg transition"
                         title="Kelola Galeri Foto"
@@ -435,9 +544,29 @@ const Rooms: React.FC = () => {
                 </div>
               </div>
 
+              {!editingRoom && (
+                <div>
+                  <label className="block text-xs font-semibold text-stone-700 uppercase tracking-wider mb-2">
+                    Jumlah Unit Kamar *
+                  </label>
+                  <input
+                    type="number"
+                    value={formTotalUnits}
+                    onChange={(e) => setFormTotalUnits(e.target.value)}
+                    min={1}
+                    max={100}
+                    required
+                    className="w-full px-4 py-2.5 rounded-xl border border-stone-200 text-sm focus:outline-none focus:ring-2 focus:ring-sage"
+                  />
+                  <p className="text-[11px] text-stone-400 mt-1.5">
+                    Unit kamar dibuat otomatis (contoh: 101, 102, dst.). Nomor dan status tiap unit bisa diubah lewat tombol "Kelola Unit".
+                  </p>
+                </div>
+              )}
+
               <div>
                 <label className="block text-xs font-semibold text-stone-700 uppercase tracking-wider mb-2">
-                  Status Kamar
+                  Status Tipe Kamar
                 </label>
                 <div className="grid grid-cols-2 gap-3">
                   <button
@@ -508,6 +637,140 @@ const Rooms: React.FC = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Manage Units Modal */}
+      {managingRoom && (
+        <div className="fixed inset-0 z-50 bg-ink/50 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-xl w-full p-6 sm:p-8 shadow-xl max-h-[90vh] overflow-y-auto">
+            <div className="flex items-start justify-between pb-4 border-b border-stone-100 mb-5">
+              <div>
+                <h3 className="font-serif text-xl font-bold text-stone-900">Kelola Unit Kamar</h3>
+                <p className="text-xs text-stone-500 mt-1">
+                  {managingRoom.name} • {managingRoom.totalUnits ?? 0} unit ({managingRoom.activeUnits ?? 0} Available,{' '}
+                  {managingRoom.maintenanceUnits ?? 0} Maintenance)
+                </p>
+              </div>
+              <button
+                onClick={() => setManagingRoomId(null)}
+                className="p-1 text-stone-400 hover:text-stone-700 rounded-lg"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {unitError && (
+              <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 text-xs rounded-xl flex items-center gap-2">
+                <AlertCircle size={16} className="flex-shrink-0" />
+                <span>{unitError}</span>
+              </div>
+            )}
+
+            <div className="space-y-2">
+              {(managingRoom.units || []).map((unit) => {
+                const busy = unitBusyId === unit.id;
+                const isAvailable = unit.status === 'Available';
+                return (
+                  <div
+                    key={unit.id}
+                    className="flex items-center gap-3 p-3 rounded-2xl border border-stone-100 bg-stone-50/60"
+                  >
+                    <div className="flex-1 min-w-0">
+                      {editingUnitId === unit.id ? (
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="text"
+                            value={editingUnitNumber}
+                            onChange={(e) => setEditingUnitNumber(e.target.value)}
+                            maxLength={30}
+                            className="w-full px-3 py-1.5 rounded-lg border border-stone-200 text-sm focus:outline-none focus:ring-2 focus:ring-sage"
+                          />
+                          <button
+                            disabled={busy}
+                            onClick={() => handleRenameUnit(unit.id)}
+                            className="px-3 py-1.5 text-xs font-semibold bg-sage-dark text-white rounded-lg disabled:opacity-50"
+                          >
+                            Simpan
+                          </button>
+                          <button
+                            onClick={() => setEditingUnitId(null)}
+                            className="px-2 py-1.5 text-xs text-stone-500 hover:bg-stone-100 rounded-lg"
+                          >
+                            Batal
+                          </button>
+                        </div>
+                      ) : (
+                        <span className="font-mono text-sm font-bold text-stone-900">{unit.unitNumber}</span>
+                      )}
+                    </div>
+
+                    <button
+                      disabled={busy}
+                      onClick={() => handleToggleUnitStatus(unit)}
+                      className={`inline-flex items-center gap-1.5 text-[11px] font-semibold px-3 py-1.5 rounded-full transition disabled:opacity-50 ${
+                        isAvailable
+                          ? 'bg-green-100 text-green-700 hover:bg-green-200'
+                          : 'bg-amber-100 text-amber-700 hover:bg-amber-200'
+                      }`}
+                      title="Klik untuk mengubah status"
+                    >
+                      {isAvailable ? <CheckCircle2 size={13} /> : <Wrench size={13} />}
+                      {isAvailable ? 'Available' : 'Maintenance'}
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        setEditingUnitId(unit.id);
+                        setEditingUnitNumber(unit.unitNumber);
+                      }}
+                      className="p-1.5 text-stone-400 hover:text-wood hover:bg-stone-100 rounded-lg"
+                      title="Ubah nomor unit"
+                    >
+                      <Pencil size={14} />
+                    </button>
+                    <button
+                      disabled={busy}
+                      onClick={() => handleDeleteUnit(unit.id)}
+                      className="p-1.5 text-stone-400 hover:text-red-600 hover:bg-red-50 rounded-lg disabled:opacity-50"
+                      title="Hapus unit"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                );
+              })}
+              {(managingRoom.units || []).length === 0 && (
+                <p className="text-xs text-stone-400 text-center py-4">Belum ada unit untuk tipe kamar ini.</p>
+              )}
+            </div>
+
+            <div className="mt-5 pt-5 border-t border-stone-100">
+              <label className="block text-xs font-semibold text-stone-700 uppercase tracking-wider mb-2">
+                Tambah Unit Baru
+              </label>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={newUnitNumber}
+                  onChange={(e) => setNewUnitNumber(e.target.value)}
+                  maxLength={30}
+                  placeholder="Contoh: 303"
+                  className="flex-1 px-4 py-2.5 rounded-xl border border-stone-200 text-sm focus:outline-none focus:ring-2 focus:ring-sage"
+                />
+                <button
+                  disabled={unitBusyId === 'new' || !newUnitNumber.trim()}
+                  onClick={handleAddUnit}
+                  className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-sage-dark hover:bg-wood text-white text-sm font-medium rounded-xl transition disabled:opacity-50"
+                >
+                  <Plus size={15} /> Tambah
+                </button>
+              </div>
+              <p className="text-[11px] text-stone-400 mt-2">
+                Unit yang pernah dipakai reservasi tidak dapat dihapus; ubah statusnya menjadi Maintenance agar tidak bisa dipesan.
+              </p>
+            </div>
           </div>
         </div>
       )}

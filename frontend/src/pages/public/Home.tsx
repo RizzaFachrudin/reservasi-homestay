@@ -8,6 +8,7 @@ import GuestLayout from '../../layouts/GuestLayout';
 import { roomService, Room } from '../../services/room.service';
 import { facilityService, Facility } from '../../services/facility.service';
 import { getFacilityIcon } from '../admin/Facilities';
+import RoomStockBadge from '../../components/RoomStockBadge';
 
 const steps = [
   { icon: Search, title: 'Cari Kamar', desc: 'Pilih tanggal dan jumlah tamu, lihat kamar yang tersedia.' },
@@ -31,6 +32,7 @@ const Home: React.FC = () => {
   const [checkInDate, setCheckInDate] = useState('');
   const [checkOutDate, setCheckOutDate] = useState('');
   const [guestCount, setGuestCount] = useState(1);
+  const [roomCount, setRoomCount] = useState(1);
   const [error, setError] = useState('');
 
   // Dynamic API state
@@ -79,11 +81,16 @@ const Home: React.FC = () => {
       setError('Jumlah tamu minimal 1 orang');
       return;
     }
+    if (!roomCount || roomCount < 1) {
+      setError('Jumlah kamar minimal 1');
+      return;
+    }
 
     const params = new URLSearchParams({
       check_in: checkInDate,
       check_out: checkOutDate,
       guests: guestCount.toString(),
+      rooms: roomCount.toString(),
     });
     navigate(`/rooms?${params.toString()}`);
   };
@@ -117,7 +124,7 @@ const Home: React.FC = () => {
         <div className="relative max-w-5xl mx-auto px-4 -mt-16 md:-mt-14 z-10">
           <form
             onSubmit={handleSearch}
-            className="bg-white rounded-3xl shadow-xl p-4 md:p-5 grid grid-cols-1 md:grid-cols-[1fr_1fr_0.7fr_auto] gap-3 items-stretch"
+            className="bg-white rounded-3xl shadow-xl p-4 md:p-5 grid grid-cols-1 md:grid-cols-[1fr_1fr_0.65fr_0.65fr_auto] gap-3 items-stretch"
           >
             <label className="bg-cream rounded-2xl px-4 py-3 block cursor-pointer">
               <span className="block text-xs text-wood font-semibold mb-1">Check-in</span>
@@ -131,8 +138,13 @@ const Home: React.FC = () => {
             </label>
             <label className="bg-cream rounded-2xl px-4 py-3 block cursor-pointer">
               <span className="block text-xs text-wood font-semibold mb-1">Jumlah Tamu</span>
-              <input type="number" value={Number.isNaN(guestCount) ? '' : guestCount} min={1} max={10} required
+              <input type="number" value={Number.isNaN(guestCount) ? '' : guestCount} min={1} max={30} required
                 onChange={(e) => setGuestCount(parseInt(e.target.value))} className={inputClass} />
+            </label>
+            <label className="bg-cream rounded-2xl px-4 py-3 block cursor-pointer">
+              <span className="block text-xs text-wood font-semibold mb-1">Jumlah Kamar</span>
+              <input type="number" value={Number.isNaN(roomCount) ? '' : roomCount} min={1} max={20} required
+                onChange={(e) => setRoomCount(parseInt(e.target.value))} className={inputClass} />
             </label>
             <button
               type="submit"
@@ -141,7 +153,7 @@ const Home: React.FC = () => {
               <Search size={18} /> Cari
             </button>
             {error && (
-              <p className="md:col-span-4 text-sm text-red-600 px-2">{error}</p>
+              <p className="md:col-span-5 text-sm text-red-600 px-2">{error}</p>
             )}
           </form>
         </div>
@@ -204,6 +216,9 @@ const Home: React.FC = () => {
                     <p className="flex items-center gap-1 text-sm text-ink/60 mt-1">
                       <Users size={15} /> Maks. {room.capacity} tamu
                     </p>
+                    <div className="mt-2">
+                      <RoomStockBadge room={room} />
+                    </div>
                     <div className="flex items-center justify-between mt-4">
                       <p>
                         <span className="text-lg font-bold text-wood">{formatRupiah(room.pricePerNight)}</span>

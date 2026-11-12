@@ -16,6 +16,7 @@ import GuestLayout from '../../layouts/GuestLayout';
 import { roomService, Room } from '../../services/room.service';
 import { facilityService, Facility } from '../../services/facility.service';
 import { getFacilityIcon } from '../admin/Facilities';
+import RoomStockBadge from '../../components/RoomStockBadge';
 
 const formatRupiah = (n: number) => `Rp ${n.toLocaleString('id-ID')}`;
 
@@ -39,11 +40,13 @@ const Rooms: React.FC = () => {
   const urlCheckIn = searchParams.get('check_in') || searchParams.get('checkIn') || '';
   const urlCheckOut = searchParams.get('check_out') || searchParams.get('checkOut') || '';
   const urlGuests = searchParams.get('guests') || '1';
+  const urlRooms = searchParams.get('rooms') || '1';
 
   // Form input states
   const [checkIn, setCheckIn] = useState(urlCheckIn);
   const [checkOut, setCheckOut] = useState(urlCheckOut);
   const [guests, setGuests] = useState<number>(Math.max(1, parseInt(urlGuests, 10) || 1));
+  const [roomCount, setRoomCount] = useState<number>(Math.max(1, parseInt(urlRooms, 10) || 1));
   const [formError, setFormError] = useState('');
 
   // Data states
@@ -64,7 +67,8 @@ const Rooms: React.FC = () => {
     setCheckIn(urlCheckIn);
     setCheckOut(urlCheckOut);
     setGuests(Math.max(1, parseInt(urlGuests, 10) || 1));
-  }, [urlCheckIn, urlCheckOut, urlGuests]);
+    setRoomCount(Math.max(1, parseInt(urlRooms, 10) || 1));
+  }, [urlCheckIn, urlCheckOut, urlGuests, urlRooms]);
 
   // Load facilities once
   useEffect(() => {
@@ -91,13 +95,15 @@ const Rooms: React.FC = () => {
           check_in: urlCheckIn,
           check_out: urlCheckOut,
           guests: Math.max(1, parseInt(urlGuests, 10) || 1),
+          rooms: Math.max(1, parseInt(urlRooms, 10) || 1),
         });
         setRooms(data);
       } else {
         const data = await roomService.getPublicRooms();
         const guestNum = parseInt(urlGuests, 10);
+        const roomsNum = Math.max(1, parseInt(urlRooms, 10) || 1);
         if (!Number.isNaN(guestNum) && guestNum > 1) {
-          setRooms(data.filter((r) => r.capacity >= guestNum));
+          setRooms(data.filter((r) => r.capacity * roomsNum >= guestNum));
         } else {
           setRooms(data);
         }
@@ -115,7 +121,7 @@ const Rooms: React.FC = () => {
 
   useEffect(() => {
     fetchRooms();
-  }, [urlCheckIn, urlCheckOut, urlGuests]);
+  }, [urlCheckIn, urlCheckOut, urlGuests, urlRooms]);
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -137,11 +143,16 @@ const Rooms: React.FC = () => {
       setFormError('Jumlah tamu minimal 1 orang');
       return;
     }
+    if (!roomCount || roomCount < 1) {
+      setFormError('Jumlah kamar minimal 1');
+      return;
+    }
 
     setSearchParams({
       check_in: checkIn,
       check_out: checkOut,
       guests: String(guests),
+      rooms: String(roomCount),
     });
   };
 
@@ -149,6 +160,7 @@ const Rooms: React.FC = () => {
     setCheckIn('');
     setCheckOut('');
     setGuests(1);
+    setRoomCount(1);
     setFormError('');
     setSearchParams({});
   };
@@ -188,6 +200,7 @@ const Rooms: React.FC = () => {
         check_in: urlCheckIn,
         check_out: urlCheckOut,
         guests: urlGuests || '1',
+        rooms: urlRooms || '1',
       });
       return `/rooms/${roomId}?${q.toString()}`;
     }
@@ -206,7 +219,7 @@ const Rooms: React.FC = () => {
         </h1>
         <p className="text-sm text-ink/70 mt-1">
           {isSearchMode
-            ? `Menampilkan kamar yang tersedia untuk ${formatDateID(urlCheckIn)} – ${formatDateID(urlCheckOut)} (${urlGuests} tamu).`
+            ? `Menampilkan kamar yang tersedia untuk ${formatDateID(urlCheckIn)} – ${formatDateID(urlCheckOut)} (${urlGuests} tamu, ${urlRooms} kamar).`
             : 'Pilih tanggal menginap untuk memeriksa ketersediaan dan estimasi total harga.'}
         </p>
       </div>
@@ -215,7 +228,7 @@ const Rooms: React.FC = () => {
       <div className="bg-white rounded-3xl shadow-sm border border-stone-200/80 p-4 md:p-5 mb-8">
         <form
           onSubmit={handleSearchSubmit}
-          className="grid grid-cols-1 md:grid-cols-[1fr_1fr_0.7fr_auto] gap-3 items-stretch"
+          className="grid grid-cols-1 md:grid-cols-[1fr_1fr_0.6fr_0.6fr_auto] gap-3 items-stretch"
         >
           <label className="bg-cream rounded-2xl px-4 py-2.5 block cursor-pointer border border-transparent focus-within:border-sage-dark">
             <span className="block text-xs text-wood font-semibold mb-0.5">Check-in</span>
@@ -247,6 +260,18 @@ const Rooms: React.FC = () => {
               max={10}
               value={Number.isNaN(guests) ? '' : guests}
               onChange={(e) => setGuests(parseInt(e.target.value, 10))}
+              className="w-full bg-transparent text-ink text-sm font-medium focus:outline-none"
+            />
+          </label>
+
+          <label className="bg-cream rounded-2xl px-4 py-2.5 block cursor-pointer border border-transparent focus-within:border-sage-dark">
+            <span className="block text-xs text-wood font-semibold mb-0.5">Jumlah Kamar</span>
+            <input
+              type="number"
+              min={1}
+              max={20}
+              value={Number.isNaN(roomCount) ? '' : roomCount}
+              onChange={(e) => setRoomCount(parseInt(e.target.value, 10))}
               className="w-full bg-transparent text-ink text-sm font-medium focus:outline-none"
             />
           </label>
@@ -425,6 +450,11 @@ const Rooms: React.FC = () => {
                     </h3>
                   </Link>
 
+                  {/* Stock badge */}
+                  <div className="mt-2">
+                    <RoomStockBadge room={room} />
+                  </div>
+
                   {room.description && (
                     <p className="text-xs text-ink/70 mt-1.5 line-clamp-2">
                       {room.description}
@@ -458,7 +488,7 @@ const Rooms: React.FC = () => {
                       <div className="bg-sage/15 rounded-2xl p-3 mb-4 flex items-center justify-between">
                         <div>
                           <span className="block text-[11px] text-ink/70 font-medium">
-                            Total {room.nights} malam
+                            Total {room.nights} malam{room.roomCount && room.roomCount > 1 ? ` • ${room.roomCount} kamar` : ''}
                           </span>
                           <span className="text-base font-bold text-wood">
                             {formatRupiah(room.totalPrice)}

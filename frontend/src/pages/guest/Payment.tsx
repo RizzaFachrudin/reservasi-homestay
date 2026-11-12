@@ -529,7 +529,7 @@ const Payment: React.FC = () => {
                   </h3>
                   <p className="text-xs text-ink/70 mt-1">
                     Harga: {formatRupiah(reservation.room?.pricePerNight || 0)} / malam •
-                    Kapasitas Maks. {reservation.room?.capacity || '-'} tamu
+                    Kapasitas Maks. {reservation.room?.capacity || '-'} tamu / kamar
                   </p>
                 </div>
               </div>
@@ -561,10 +561,10 @@ const Payment: React.FC = () => {
 
               <div className="flex items-center justify-between text-sm bg-sage/15 px-4 py-3 rounded-2xl">
                 <span className="flex items-center gap-2 font-medium text-ink">
-                  <Users size={16} className="text-sage-dark" /> Jumlah Tamu & Durasi
+                  <Users size={16} className="text-sage-dark" /> Jumlah Kamar, Tamu & Durasi
                 </span>
                 <span className="font-bold text-wood">
-                  {reservation.guestCount} Tamu • {reservation.nights} Malam
+                  {reservation.roomCount} Kamar • {reservation.guestCount} Tamu • {reservation.nights} Malam
                 </span>
               </div>
 
@@ -609,7 +609,7 @@ const Payment: React.FC = () => {
                     reservation.room?.pricePerNight ||
                       reservation.totalPrice / Math.max(1, reservation.nights)
                   )}{' '}
-                  × {reservation.nights} malam
+                  × {reservation.nights} malam × {reservation.roomCount} kamar
                 </span>
                 <span className="font-semibold text-ink">
                   {formatRupiah(reservation.totalPrice)}

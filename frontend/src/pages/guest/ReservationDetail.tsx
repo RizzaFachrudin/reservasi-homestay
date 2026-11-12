@@ -323,6 +323,26 @@ const ReservationDetail: React.FC = () => {
                     </span>
                   </div>
                 </div>
+
+                <div className="bg-sage/10 border border-sage/30 rounded-2xl px-4 py-3 text-xs sm:text-sm flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1.5">
+                  <span className="font-semibold text-wood">
+                    Kamar Dipesan: {reservation.roomCount} Kamar
+                  </span>
+                  <span className="text-ink/80">
+                    {reservation.units && reservation.units.length > 0 ? (
+                      <>
+                        Nomor Unit:{' '}
+                        <strong className="font-mono text-ink">
+                          {reservation.units.map((u) => u.unitNumber).join(', ')}
+                        </strong>
+                      </>
+                    ) : isCancelled ? (
+                      'Unit kamar dilepas (dibatalkan)'
+                    ) : (
+                      'Nomor unit kamar ditetapkan setelah pembayaran lunas'
+                    )}
+                  </span>
+                </div>
               </div>
 
               {/* Right 4 Cols: Perforated Booking Code Stub */}
@@ -465,7 +485,7 @@ const ReservationDetail: React.FC = () => {
                     reservation.room?.pricePerNight ||
                       reservation.totalPrice / Math.max(1, reservation.nights)
                   )}{' '}
-                  × {reservation.nights} malam
+                  × {reservation.nights} malam × {reservation.roomCount} kamar
                 </span>
                 <span className="font-semibold text-ink">
                   {formatRupiah(reservation.totalPrice)}

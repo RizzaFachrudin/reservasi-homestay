@@ -21,6 +21,8 @@ export interface Reservation {
   checkOutDate: string;
   nights: number;
   guestCount: number;
+  roomCount: number;
+  units?: { id: string; unitNumber: string }[];
   totalPrice: number;
   status: 'Pending' | 'Confirmed' | 'Checked-in' | 'Completed' | 'Cancelled';
   createdAt: string;
@@ -41,6 +43,7 @@ export interface CreateReservationPayload {
   check_in_date: string;
   check_out_date: string;
   guest_count: number;
+  room_count?: number;
 }
 
 export interface SnapPaymentResponse {
