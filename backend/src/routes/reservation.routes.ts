@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import reservationController from '../controllers/reservation.controller';
+import paymentController from '../controllers/payment.controller';
 import { authenticateToken, authorizeRoles } from '../middlewares/auth.middleware';
 
 const router = Router();
@@ -12,6 +13,12 @@ router.post('/', (req, res) => reservationController.createReservation(req, res)
 
 // GET /api/reservations/me - Get logged-in user's reservation history (SF-8)
 router.get('/me', (req, res) => reservationController.getMyReservations(req, res));
+
+// POST /api/reservations/:id/pay - Create or reuse Midtrans Snap transaction (SF-7)
+router.post('/:id/pay', (req, res) => paymentController.createOrGetPayment(req, res));
+
+// POST /api/reservations/:id/sync - Sync payment status from Midtrans API (SF-7)
+router.post('/:id/sync', (req, res) => paymentController.syncPaymentStatus(req, res));
 
 // GET /api/reservations/:id - Get reservation detail by ID or bookingCode (SF-6, SF-8, BR-15)
 router.get('/:id', (req, res) => reservationController.getReservationById(req, res));

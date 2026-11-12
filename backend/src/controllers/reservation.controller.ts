@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import reservationService from '../services/reservation.service';
+import paymentService from '../services/payment.service';
 import { sendSuccess, sendError } from '../utils/response.util';
 
 export class ReservationController {
@@ -162,11 +163,19 @@ export class ReservationController {
       }
 
       const { id } = req.params;
-      const reservation = await reservationService.getReservationById(
-        id,
-        req.user.userId,
-        req.user.role
-      );
+      const shouldSync = req.query.sync === 'true';
+
+      const reservation = shouldSync
+        ? await paymentService.syncPaymentStatusFromMidtrans(
+            id,
+            req.user.userId,
+            req.user.role
+          )
+        : await reservationService.getReservationById(
+            id,
+            req.user.userId,
+            req.user.role
+          );
 
       sendSuccess(res, 'Detail reservasi berhasil diambil', reservation);
     } catch (error: any) {
