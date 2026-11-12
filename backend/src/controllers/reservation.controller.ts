@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import reservationService from '../services/reservation.service';
 import paymentService from '../services/payment.service';
+import invoiceService from '../services/invoice.service';
 import { sendSuccess, sendError } from '../utils/response.util';
 
 export class ReservationController {
@@ -197,6 +198,59 @@ export class ReservationController {
 
       console.error('Error fetching reservation detail:', error);
       sendError(res, 'Gagal mengambil detail reservasi', 500);
+    }
+  }
+
+  /**
+   * GET /api/reservations/:id/invoice
+   * Download PDF invoice for a settled reservation (SF-9, BR-12, BR-15)
+   */
+  async downloadInvoice(req: Request, res: Response): Promise<void> {
+    try {
+      if (!req.user) {
+        sendError(res, 'Autentikasi diperlukan', 401);
+        return;
+      }
+
+      const { id } = req.params;
+      const { buffer, filename } = await invoiceService.generateInvoicePdf(
+        id,
+        req.user.userId,
+        req.user.role
+      );
+
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      res.setHeader('Content-Length', buffer.length);
+      res.status(200).send(buffer);
+    } catch (error: any) {
+      const msg = error?.message || '';
+
+      if (msg === 'RESERVATION_NOT_FOUND') {
+        sendError(res, 'Data reservasi tidak ditemukan', 404);
+        return;
+      }
+
+      if (msg === 'FORBIDDEN_RESERVATION_ACCESS') {
+        sendError(
+          res,
+          'Anda tidak memiliki akses untuk mengunduh invoice milik pengguna lain',
+          403
+        );
+        return;
+      }
+
+      if (msg === 'INVOICE_NOT_AVAILABLE') {
+        sendError(
+          res,
+          'Invoice belum tersedia karena pembayaran belum lunas (Settlement)',
+          400
+        );
+        return;
+      }
+
+      console.error('Error generating PDF invoice:', error);
+      sendError(res, 'Gagal membuat dokumen invoice PDF', 500);
     }
   }
 }

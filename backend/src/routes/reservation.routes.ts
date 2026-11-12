@@ -20,6 +20,9 @@ router.post('/:id/pay', (req, res) => paymentController.createOrGetPayment(req, 
 // POST /api/reservations/:id/sync - Sync payment status from Midtrans API (SF-7)
 router.post('/:id/sync', (req, res) => paymentController.syncPaymentStatus(req, res));
 
+// GET /api/reservations/:id/invoice - Download PDF invoice (SF-9, BR-15)
+router.get('/:id/invoice', (req, res) => reservationController.downloadInvoice(req, res));
+
 // GET /api/reservations/:id - Get reservation detail by ID or bookingCode (SF-6, SF-8, BR-15)
 router.get('/:id', (req, res) => reservationController.getReservationById(req, res));
 
