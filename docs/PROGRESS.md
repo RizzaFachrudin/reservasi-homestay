@@ -3,7 +3,7 @@
 **Project:** Sistem Informasi Reservasi Homestay  
 **Repository:** https://github.com/RizzaFachrudin/reservasi-homestay  
 **Periode Pengerjaan:** Oktober 2026 - November 2026  
-**Status Terkini:** Milestone 2 (M2) - Admin Master Data Management - **COMPLETED**
+**Status Terkini:** Milestone 7 (M7) - Admin Monitoring, Check-in & Check-out - **COMPLETED**
 
 ---
 
@@ -544,12 +544,17 @@
 | SF-08 | Riwayat Reservasi & Tiket Check-in Digital | ✅ DONE | Halaman `/reservations` (dengan filter tab status) & `/reservations/:id` (Tiket Check-in Digital aktif untuk `Confirmed`+) |
 | SF-09 | Unduh Invoice PDF (PDFKit) | ✅ DONE | `GET /api/reservations/:id/invoice` dengan otorisasi pemilik & syarat `Settlement` (BR-15, BR-12) |
 
-### Milestone 7 & 8 (M7–M8): Admin Monitoring, Check-in/Check-out, Dashboard & Laporan ❌
+### Milestone 7 (M7): Admin Monitoring, Check-in & Check-out ✅
 
 | No | System Feature | Status | Keterangan |
 |----|----------------|--------|------------|
-| SF-15 | Kelola Reservasi Masuk (Admin) | ❌ NOT STARTED | Backend + Frontend belum |
-| SF-16 | Check-in & Check-out System (Admin) | ❌ NOT STARTED | Backend + Frontend belum |
+| SF-15 | Kelola Reservasi Masuk (Admin) | ✅ DONE | `GET /api/admin/reservations`, `GET /api/admin/reservations/:id` + halaman `/admin/reservations` (filter status, rentang tanggal Check-in, pencarian, paginasi, nomor unit kamar, & modal detail) |
+| SF-16 | Check-in & Check-out System (Admin) | ✅ DONE | `GET /api/admin/checkin/lookup`, `POST /api/admin/reservations/:id/check-in` (BR-10, mulai 13:00 WIB), `POST /api/admin/reservations/:id/check-out` (BR-11, 11:00–12:00 WIB) + halaman `/admin/checkin` |
+
+### Milestone 8 (M8): Admin Dashboard Statistik & Laporan Pendapatan ❌
+
+| No | System Feature | Status | Keterangan |
+|----|----------------|--------|------------|
 | SF-11 / SF-17 | Admin Dashboard Statistik & Laporan Bulanan | ❌ NOT STARTED | Backend + Frontend belum |
 
 ---
@@ -583,8 +588,9 @@
 - **M4:** ✅ 100% (SF-6 done)
 - **M5:** ✅ 100% (SF-7 done)
 - **M6:** ✅ 100% (SF-8, SF-9 done)
-- **M7–M8:** ❌ 0% (SF-11, SF-15, SF-16, SF-17 remaining)
-- **Total:** 76.5% (13/17 PRD System Features completed)
+- **M7:** ✅ 100% (SF-15, SF-16 done)
+- **M8:** ❌ 0% (SF-11, SF-17 remaining)
+- **Total:** 88.2% (15/17 PRD System Features completed)
 
 ---
 

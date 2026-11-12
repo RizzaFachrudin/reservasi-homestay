@@ -161,3 +161,24 @@ Content-Type: application/json
     "payment_type": "bank_transfer",
     "transaction_id": "midtrans-sample-tx-id"
 }
+
+### 20. Admin - Get All Reservations with Filter & Pagination (M7 - SF-15)
+GET {{baseUrl}}/admin/reservations?status=All&page=1&limit=10
+Authorization: Bearer {{adminToken}}
+
+### 21. Admin - Get Reservation Detail by ID (M7 - SF-15)
+GET {{baseUrl}}/admin/reservations/8
+Authorization: Bearer {{adminToken}}
+
+### 22. Admin - Lookup Check-in by Booking Code (M7 - SF-16, BR-10)
+GET {{baseUrl}}/admin/checkin/lookup?code=HSR-20261112-YRD3
+Authorization: Bearer {{adminToken}}
+
+### 23. Admin - Confirm Guest Check-in (M7 - SF-16, BR-10)
+POST {{baseUrl}}/admin/reservations/8/check-in
+Authorization: Bearer {{adminToken}}
+
+### 24. Admin - Process Guest Check-out (M7 - SF-16, BR-11)
+POST {{baseUrl}}/admin/reservations/8/check-out
+Authorization: Bearer {{adminToken}}
+
