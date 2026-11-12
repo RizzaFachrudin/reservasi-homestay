@@ -503,8 +503,8 @@
 |----|----------------|--------|------------|
 | SF-01 | User Registration | ✅ DONE | Backend + Frontend |
 | SF-02 | User Login | ✅ DONE | Backend + Frontend |
-| SF-03 | Public Landing Page | ✅ DONE | Home page dengan search form |
-| SF-04 | View Available Rooms | 🟡 PARTIAL | Halaman placeholder, logic belum |
+| SF-03 | Public Landing Page | ✅ DONE | Home page dengan search form, kamar unggulan, fasilitas, error/retry |
+| SF-04 | View Available Rooms | ✅ DONE | Katalog & Pencarian Ketersediaan (`/rooms` & `/search`) |
 
 ### Milestone 2 (M2): Admin Master Data Management ✅
 
@@ -514,13 +514,13 @@
 | SF-06 | Manage Rooms (Admin) | ✅ DONE | Backend CRUD (Soft Delete BR-12) + Frontend Admin |
 | SF-07 | Room Image Upload (Admin) | ✅ DONE | Backend Multer + Frontend Gallery & Primary Photo |
 
-### Milestone 3 (M3): Booking Flow ❌
+### Milestone 3 (M3): Pencarian Ketersediaan, Katalog, Detail Kamar & Kalender Publik ✅
 
 | No | System Feature | Status | Keterangan |
 |----|----------------|--------|------------|
-| SF-08 | Room Detail & Booking Form | ❌ NOT STARTED | Backend + Frontend belum |
-| SF-09 | Availability Check | ❌ NOT STARTED | Backend logic belum |
-| SF-10 | Create Reservation | ❌ NOT STARTED | Backend + Frontend belum |
+| SF-08 | Room Detail & Availability Calendar | ✅ DONE | `/rooms/:id` dengan galeri foto, kalender bulanan interaktif, estimasi harga & Login Gate (BR-19) |
+| SF-09 | Availability Check & Overlap Detection | ✅ DONE | `GET /api/rooms/available` & `GET /api/rooms/:id/availability` (BR-03, BR-04, BR-05, BR-18) |
+| SF-10 | Booking Preview & Protected Gate | ✅ DONE | Halaman `/booking/:roomId` terproteksi untuk uji alur `?redirect=` (siap dilanjutkan transaksi DB di M4) |
 
 ### Milestone 4 (M4): Guest Management ❌
 
@@ -571,11 +571,11 @@
 ### Overall Project Progress
 - **M1:** ✅ 100% (4/4 features done)
 - **M2:** ✅ 100% (3/3 features done)
-- **M3:** ❌ 0% (0/3 features)
+- **M3:** ✅ 100% (3/3 features done)
 - **M4:** ❌ 0% (0/2 features)
 - **M5:** ❌ 0% (0/3 features)
 - **M6:** ❌ 0% (0/2 features)
-- **Total:** 41.2% (7/17 features completed)
+- **Total:** 58.8% (10/17 features completed)
 
 ---
 
