@@ -14,6 +14,7 @@ import {
   CheckCircle2,
   XCircle,
   Loader2,
+  Lock,
 } from 'lucide-react';
 import GuestLayout from '../../layouts/GuestLayout';
 import { reservationService, Reservation } from '../../services/reservation.service';
@@ -48,6 +49,8 @@ const Reservations: React.FC = () => {
   const [activeTab, setActiveTab] = useState<FilterTab>('ALL');
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [downloadError, setDownloadError] = useState('');
+  const [cancelTarget, setCancelTarget] = useState<Reservation | null>(null);
+  const [cancelling, setCancelling] = useState(false);
 
   const fetchReservations = async () => {
     setLoading(true);
@@ -97,6 +100,26 @@ const Reservations: React.FC = () => {
       setDownloadError(err?.message || 'Gagal mengunduh invoice PDF.');
     } finally {
       setDownloadingId(null);
+    }
+  };
+
+  const handleConfirmCancel = async () => {
+    if (!cancelTarget) return;
+    setDownloadError('');
+    setCancelling(true);
+    try {
+      const updated = await reservationService.cancelReservation(cancelTarget.id);
+      setReservations((prev) =>
+        prev.map((item) => (item.id === updated.id ? updated : item))
+      );
+      setCancelTarget(null);
+    } catch (err: any) {
+      setDownloadError(
+        err?.response?.data?.message || 'Gagal membatalkan pesanan. Silakan coba lagi.'
+      );
+      setCancelTarget(null);
+    } finally {
+      setCancelling(false);
     }
   };
 
@@ -276,9 +299,18 @@ const Reservations: React.FC = () => {
 
                     <div className="space-y-2 flex-1">
                       <div className="flex flex-wrap items-center gap-2">
-                        <span className="font-mono text-xs font-bold bg-cream text-wood px-2.5 py-1 rounded-lg border border-stone-200/80">
-                          {res.bookingCode}
-                        </span>
+                        {res.bookingCode ? (
+                          <span className="font-mono text-xs font-bold bg-cream text-wood px-2.5 py-1 rounded-lg border border-stone-200/80">
+                            {res.bookingCode}
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 text-xs font-semibold bg-stone-100 text-stone-600 px-2.5 py-1 rounded-lg border border-stone-200/80">
+                            <Lock size={11} className="text-amber-600" />
+                            {res.status === 'Pending'
+                              ? 'Kode Check-in Terbit Setelah Bayar'
+                              : `Pesanan #${res.id}`}
+                          </span>
+                        )}
                         {renderStatusBadge(res.status)}
                         {res.payment && (
                           <span className="text-[11px] font-medium text-stone-500">
@@ -318,12 +350,21 @@ const Reservations: React.FC = () => {
 
                     <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto justify-end">
                       {isPending && (
-                        <Link
-                          to={`/payment/${res.id}`}
-                          className="inline-flex items-center gap-1.5 bg-sage-dark hover:bg-wood text-white text-xs font-semibold px-4 py-2.5 rounded-xl transition shadow-sm"
-                        >
-                          <CreditCard size={14} /> Bayar Sekarang
-                        </Link>
+                        <>
+                          <Link
+                            to={`/payment/${res.id}`}
+                            className="inline-flex items-center gap-1.5 bg-sage-dark hover:bg-wood text-white text-xs font-semibold px-4 py-2.5 rounded-xl transition shadow-sm"
+                          >
+                            <CreditCard size={14} /> Bayar Sekarang
+                          </Link>
+                          <button
+                            type="button"
+                            onClick={() => setCancelTarget(res)}
+                            className="inline-flex items-center gap-1 bg-white hover:bg-red-50 text-red-600 border border-red-200 text-xs font-semibold px-3.5 py-2.5 rounded-xl transition"
+                          >
+                            <XCircle size={14} /> Batalkan
+                          </button>
+                        </>
                       )}
 
                       {isSettled && (
@@ -361,6 +402,59 @@ const Reservations: React.FC = () => {
           </div>
         )}
       </div>
+
+      {/* Confirmation Modal for Manual Cancel */}
+      {cancelTarget && (
+        <div className="fixed inset-0 z-50 bg-ink/50 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-stone-100 space-y-4">
+            <div className="w-12 h-12 rounded-2xl bg-red-100 text-red-600 flex items-center justify-center">
+              <AlertCircle size={26} />
+            </div>
+            <div>
+              <h3 className="font-serif text-xl font-bold text-wood">
+                Batalkan Pesanan Ini?
+              </h3>
+              <p className="text-xs sm:text-sm text-ink/75 mt-1.5 leading-relaxed">
+                Apakah Anda yakin ingin membatalkan pesanan kamar{' '}
+                <strong>{cancelTarget.room?.name}</strong> untuk tanggal{' '}
+                <strong>
+                  {formatDateShortID(cancelTarget.checkInDate)} –{' '}
+                  {formatDateShortID(cancelTarget.checkOutDate)}
+                </strong>
+                ? Kuota kamar akan langsung dilepas kembali.
+              </p>
+            </div>
+            <div className="flex items-center justify-end gap-2.5 pt-2">
+              <button
+                type="button"
+                disabled={cancelling}
+                onClick={() => setCancelTarget(null)}
+                className="px-4 py-2.5 rounded-xl bg-stone-100 hover:bg-stone-200 text-stone-700 text-xs font-semibold transition"
+              >
+                Kembali
+              </button>
+              <button
+                type="button"
+                disabled={cancelling}
+                onClick={handleConfirmCancel}
+                className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-semibold transition disabled:opacity-60"
+              >
+                {cancelling ? (
+                  <>
+                    <Loader2 size={14} className="animate-spin" />
+                    <span>Membatalkan...</span>
+                  </>
+                ) : (
+                  <>
+                    <XCircle size={14} />
+                    <span>Ya, Batalkan Pesanan</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </GuestLayout>
   );
 };

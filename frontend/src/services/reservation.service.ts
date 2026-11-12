@@ -14,7 +14,7 @@ export interface PaymentInfo {
 
 export interface Reservation {
   id: string;
-  bookingCode: string;
+  bookingCode: string | null;
   userId: string;
   roomId: string;
   checkInDate: string;
@@ -89,7 +89,14 @@ export const reservationService = {
     return res.data;
   },
 
-  downloadInvoice: async (id: string, bookingCode?: string): Promise<void> => {
+  cancelReservation: async (id: string): Promise<Reservation> => {
+    const res = await apiService.post<ApiResponse<Reservation>>(
+      `/reservations/${id}/cancel`
+    );
+    return res.data;
+  },
+
+  downloadInvoice: async (id: string, bookingCode?: string | null): Promise<void> => {
     const token = localStorage.getItem('token');
     const response = await fetch(`/api/reservations/${id}/invoice`, {
       method: 'GET',

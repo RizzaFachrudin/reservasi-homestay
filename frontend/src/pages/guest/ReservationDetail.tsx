@@ -15,6 +15,8 @@ import {
   ShieldCheck,
   Loader2,
   RotateCcw,
+  Lock,
+  XCircle,
 } from 'lucide-react';
 import GuestLayout from '../../layouts/GuestLayout';
 import { reservationService, Reservation } from '../../services/reservation.service';
@@ -55,6 +57,8 @@ const ReservationDetail: React.FC = () => {
   const [copied, setCopied] = useState(false);
   const [downloading, setDownloading] = useState(false);
   const [downloadError, setDownloadError] = useState('');
+  const [cancelling, setCancelling] = useState(false);
+  const [showCancelModal, setShowCancelModal] = useState(false);
 
   useEffect(() => {
     if (!id) return;
@@ -74,7 +78,7 @@ const ReservationDetail: React.FC = () => {
   }, [id]);
 
   const handleCopyCode = () => {
-    if (!reservation) return;
+    if (!reservation || !reservation.bookingCode) return;
     navigator.clipboard.writeText(reservation.bookingCode);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
@@ -87,7 +91,7 @@ const ReservationDetail: React.FC = () => {
     try {
       await reservationService.downloadInvoice(
         reservation.id,
-        reservation.bookingCode
+        reservation.bookingCode || `RES-${reservation.id}`
       );
     } catch (err: any) {
       setDownloadError(
@@ -95,6 +99,24 @@ const ReservationDetail: React.FC = () => {
       );
     } finally {
       setDownloading(false);
+    }
+  };
+
+  const handleCancelReservation = async () => {
+    if (!reservation) return;
+    setCancelling(true);
+    setDownloadError('');
+    try {
+      const updated = await reservationService.cancelReservation(reservation.id);
+      setReservation(updated);
+      setShowCancelModal(false);
+    } catch (err: any) {
+      setDownloadError(
+        err?.response?.data?.message || 'Gagal membatalkan reservasi.'
+      );
+      setShowCancelModal(false);
+    } finally {
+      setCancelling(false);
     }
   };
 
@@ -157,12 +179,21 @@ const ReservationDetail: React.FC = () => {
 
           <div className="flex flex-wrap items-center gap-2.5">
             {isPending && (
-              <Link
-                to={`/payment/${reservation.id}`}
-                className="inline-flex items-center gap-2 bg-sage-dark hover:bg-wood text-white text-xs sm:text-sm font-semibold px-5 py-2.5 rounded-2xl transition shadow-sm"
-              >
-                <CreditCard size={16} /> Lanjutkan Pembayaran
-              </Link>
+              <>
+                <Link
+                  to={`/payment/${reservation.id}`}
+                  className="inline-flex items-center gap-2 bg-sage-dark hover:bg-wood text-white text-xs sm:text-sm font-semibold px-5 py-2.5 rounded-2xl transition shadow-sm"
+                >
+                  <CreditCard size={16} /> Lanjutkan Pembayaran
+                </Link>
+                <button
+                  type="button"
+                  onClick={() => setShowCancelModal(true)}
+                  className="inline-flex items-center gap-1.5 bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 text-xs sm:text-sm font-semibold px-4 py-2.5 rounded-2xl transition"
+                >
+                  <XCircle size={16} /> Batalkan Pesanan
+                </button>
+              </>
             )}
 
             {isSettled ? (
@@ -299,23 +330,37 @@ const ReservationDetail: React.FC = () => {
                 <span className="text-[11px] font-bold uppercase tracking-widest text-wood">
                   Kode Reservasi Check-in
                 </span>
-                <div className="my-2 bg-cream border-2 border-sage-dark/30 rounded-2xl px-4 py-3 w-full flex items-center justify-center gap-2">
-                  <span className="font-mono text-xl sm:text-2xl font-bold text-ink tracking-wider">
-                    {reservation.bookingCode}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={handleCopyCode}
-                    className="p-1.5 rounded-lg bg-white hover:bg-sage/20 text-sage-dark border border-stone-200 transition"
-                    title="Salin Kode Reservasi"
-                  >
-                    {copied ? <Check size={15} /> : <Copy size={15} />}
-                  </button>
-                </div>
-                {copied && (
-                  <span className="text-[11px] text-sage-dark font-semibold mb-1">
-                    Kode disalin!
-                  </span>
+                {reservation.bookingCode ? (
+                  <>
+                    <div className="my-2 bg-cream border-2 border-sage-dark/30 rounded-2xl px-4 py-3 w-full flex items-center justify-center gap-2">
+                      <span className="font-mono text-xl sm:text-2xl font-bold text-ink tracking-wider">
+                        {reservation.bookingCode}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={handleCopyCode}
+                        className="p-1.5 rounded-lg bg-white hover:bg-sage/20 text-sage-dark border border-stone-200 transition"
+                        title="Salin Kode Reservasi"
+                      >
+                        {copied ? <Check size={15} /> : <Copy size={15} />}
+                      </button>
+                    </div>
+                    {copied && (
+                      <span className="text-[11px] text-sage-dark font-semibold mb-1">
+                        Kode disalin!
+                      </span>
+                    )}
+                  </>
+                ) : (
+                  <div className="my-2 bg-stone-100 border-2 border-dashed border-stone-300 rounded-2xl px-4 py-3.5 w-full flex flex-col items-center justify-center gap-1">
+                    <span className="inline-flex items-center gap-1.5 text-xs font-bold text-stone-600 uppercase tracking-wider">
+                      <Lock size={14} className="text-amber-600" />
+                      {isCancelled ? 'Tidak Diterbitkan' : 'Terbit Setelah Lunas'}
+                    </span>
+                    <span className="text-[11px] text-stone-500">
+                      ID Pesanan #{reservation.id}
+                    </span>
+                  </div>
                 )}
 
                 {isTicketActive ? (
@@ -336,7 +381,7 @@ const ReservationDetail: React.FC = () => {
                   {isTicketActive
                     ? 'Tunjukkan kode ini kepada resepsionis saat tiba di lokasi.'
                     : isPending
-                    ? 'Tiket check-in dan invoice PDF aktif otomatis setelah pembayaran Settlement.'
+                    ? 'Kode check-in dan invoice PDF aktif otomatis setelah pembayaran Settlement.'
                     : 'Reservasi ini telah dibatalkan.'}
                 </p>
               </div>
@@ -451,7 +496,7 @@ const ReservationDetail: React.FC = () => {
             ) : isPending ? (
               <div className="space-y-2.5">
                 <div className="bg-amber-50 border border-amber-200/80 text-amber-900 text-xs p-3 rounded-xl">
-                  Invoice belum tersedia. Silakan selesaikan pembayaran Anda terlebih dahulu.
+                  Invoice dan Kode Check-in belum tersedia. Silakan selesaikan pembayaran Anda terlebih dahulu.
                 </div>
                 <Link
                   to={`/payment/${reservation.id}`}
@@ -460,6 +505,14 @@ const ReservationDetail: React.FC = () => {
                   <CreditCard size={16} />
                   <span>Bayar Sekarang</span>
                 </Link>
+                <button
+                  type="button"
+                  onClick={() => setShowCancelModal(true)}
+                  className="w-full flex items-center justify-center gap-2 bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 text-xs sm:text-sm font-semibold py-3 px-4 rounded-2xl transition"
+                >
+                  <XCircle size={15} />
+                  <span>Batalkan Pesanan Ini</span>
+                </button>
               </div>
             ) : (
               <Link
@@ -478,6 +531,52 @@ const ReservationDetail: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Cancel Confirmation Modal */}
+      {showCancelModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 sm:p-7 shadow-xl border border-stone-100 space-y-4">
+            <div className="w-12 h-12 rounded-2xl bg-red-50 text-red-600 flex items-center justify-center">
+              <AlertCircle size={24} />
+            </div>
+            <div className="space-y-1.5">
+              <h3 className="font-serif text-xl font-bold text-ink">
+                Batalkan Pesanan Ini?
+              </h3>
+              <p className="text-xs sm:text-sm text-ink/70 leading-relaxed">
+                Apakah Anda yakin ingin membatalkan pesanan{' '}
+                <strong className="text-ink">
+                  {reservation.room?.name || `Kamar #${reservation.roomId}`}
+                </strong>
+                ? Kuota kamar akan segera dilepas kembali dan transaksi ini tidak dapat dilanjutkan.
+              </p>
+            </div>
+            <div className="flex items-center justify-end gap-2.5 pt-2">
+              <button
+                type="button"
+                disabled={cancelling}
+                onClick={() => setShowCancelModal(false)}
+                className="px-4 py-2.5 rounded-xl border border-stone-200 text-xs sm:text-sm font-semibold text-ink hover:bg-stone-50 transition disabled:opacity-50"
+              >
+                Kembali
+              </button>
+              <button
+                type="button"
+                disabled={cancelling}
+                onClick={handleCancelReservation}
+                className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs sm:text-sm font-semibold transition shadow-sm disabled:opacity-60"
+              >
+                {cancelling ? (
+                  <Loader2 size={15} className="animate-spin" />
+                ) : (
+                  <XCircle size={15} />
+                )}
+                <span>Ya, Batalkan Pesanan</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </GuestLayout>
   );
 };
