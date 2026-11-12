@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { authenticateToken, authorizeRoles } from '../middlewares/auth.middleware';
 import { FacilityController } from '../controllers/facility.controller';
 import { RoomController } from '../controllers/room.controller';
+import reservationController from '../controllers/reservation.controller';
 import upload from '../config/multer.config';
 
 const router = Router();
@@ -34,5 +35,12 @@ router.delete('/rooms/:id/units/:unitId', roomController.deleteUnit);
 router.post('/rooms/:id/images', upload.array('images', 10), roomController.uploadImages);
 router.patch('/images/:id/primary', roomController.setPrimaryImage);
 router.delete('/images/:id', roomController.deleteImage);
+
+// Admin Reservation Monitoring & Check-in / Check-out (SF-15, SF-16, BR-10, BR-11)
+router.get('/reservations', (req, res) => reservationController.getAdminReservations(req, res));
+router.get('/reservations/:id', (req, res) => reservationController.getAdminReservationById(req, res));
+router.get('/checkin/lookup', (req, res) => reservationController.lookupCheckIn(req, res));
+router.post('/reservations/:id/check-in', (req, res) => reservationController.checkInReservation(req, res));
+router.post('/reservations/:id/check-out', (req, res) => reservationController.checkOutReservation(req, res));
 
 export default router;

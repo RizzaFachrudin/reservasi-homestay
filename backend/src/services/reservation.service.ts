@@ -22,9 +22,105 @@ interface LockedRoomRow {
 
 export class ReservationService {
   /**
+   * Current date string (YYYY-MM-DD) in WIB (Asia/Jakarta, UTC+7)
+   */
+  private getTodayWib(): string {
+    const wibMs = Date.now() + 7 * 60 * 60 * 1000;
+    return new Date(wibMs).toISOString().split('T')[0];
+  }
+
+  /**
+   * Evaluate BR-10 check-in & BR-11 check-out eligibility for a reservation
+   */
+  private evaluateCheckInEligibility(res: any) {
+    const todayWib = this.getTodayWib();
+    const checkInStr =
+      res.checkInDate instanceof Date
+        ? res.checkInDate.toISOString().split('T')[0]
+        : String(res.checkInDate);
+    const checkOutStr =
+      res.checkOutDate instanceof Date
+        ? res.checkOutDate.toISOString().split('T')[0]
+        : String(res.checkOutDate);
+
+    const status = res.status === 'Checked_in' ? 'Checked-in' : res.status;
+    const paymentStatus = res.payment?.status || 'Pending';
+
+    if (status === 'Checked-in') {
+      return {
+        canCheckIn: false,
+        canCheckOut: true,
+        code: 'ALREADY_CHECKED_IN',
+        reason:
+          'Tamu sudah melakukan Check-in dan saat ini sedang menginap. Gunakan tombol Check-out saat tamu mengembalikan kunci kamar (11:00–12:00 WIB).',
+        todayWib,
+      };
+    }
+
+    if (status === 'Completed') {
+      return {
+        canCheckIn: false,
+        canCheckOut: false,
+        code: 'ALREADY_COMPLETED',
+        reason: 'Reservasi ini sudah selesai (Completed / tamu sudah Check-out).',
+        todayWib,
+      };
+    }
+
+    if (status === 'Cancelled') {
+      return {
+        canCheckIn: false,
+        canCheckOut: false,
+        code: 'RESERVATION_CANCELLED',
+        reason: 'Reservasi ini telah dibatalkan (Cancelled) dan tidak berlaku untuk Check-in.',
+        todayWib,
+      };
+    }
+
+    if (status !== 'Confirmed' || paymentStatus !== 'Settlement') {
+      return {
+        canCheckIn: false,
+        canCheckOut: false,
+        code: 'PAYMENT_NOT_SETTLED',
+        reason: `Pembayaran belum lunas (Status Reservasi: ${status}, Status Pembayaran: ${paymentStatus}). Check-in hanya dapat dilakukan setelah pembayaran Settlement.`,
+        todayWib,
+      };
+    }
+
+    // BR-10: Check-in only when today (WIB) == check_in_date
+    if (todayWib < checkInStr) {
+      return {
+        canCheckIn: false,
+        canCheckOut: false,
+        code: 'CHECKIN_DATE_TOO_EARLY',
+        reason: `Belum memasuki jadwal Check-in. Tanggal Check-in reservasi ini adalah ${checkInStr} (mulai pukul 13:00 WIB), sedangkan hari ini adalah ${todayWib}.`,
+        todayWib,
+      };
+    }
+
+    if (todayWib > checkInStr) {
+      return {
+        canCheckIn: false,
+        canCheckOut: false,
+        code: 'CHECKIN_DATE_PASSED',
+        reason: `Tanggal Check-in reservasi ini (${checkInStr}, Check-out ${checkOutStr}) tidak sesuai dengan tanggal hari ini (${todayWib}). Sesuai aturan BR-10, Check-in wajib dilakukan pada tanggal Check-in.`,
+        todayWib,
+      };
+    }
+
+    return {
+      canCheckIn: true,
+      canCheckOut: false,
+      code: 'ELIGIBLE',
+      reason: null,
+      todayWib,
+    };
+  }
+
+  /**
    * Format Reservation record for safe JSON serialization
    */
-  private formatReservation(res: any) {
+  private formatReservation(res: any, revealAllForAdmin = false) {
     const checkInStr =
       res.checkInDate instanceof Date
         ? res.checkInDate.toISOString().split('T')[0]
@@ -47,8 +143,10 @@ export class ReservationService {
       res.room?.images?.[0]?.imagePath ||
       null;
 
-    // Only reveal check-in bookingCode once payment is Settlement / reservation is Confirmed+
+    // Only reveal check-in bookingCode to Guest once payment is Settlement / reservation is Confirmed+
+    // Admin always sees bookingCode and allocated units for operational monitoring.
     const isBookingCodeRevealed =
+      revealAllForAdmin ||
       res.status === 'Confirmed' ||
       res.status === 'Checked_in' ||
       res.status === 'Checked-in' ||
@@ -353,7 +451,7 @@ export class ReservationService {
       throw new Error('FORBIDDEN_RESERVATION_ACCESS');
     }
 
-    return this.formatReservation(reservation);
+    return this.formatReservation(reservation, requesterRole === 'Admin');
   }
 
   /**
@@ -435,6 +533,406 @@ export class ReservationService {
     });
 
     return this.formatReservation(updated);
+  }
+
+  /**
+   * GET /api/admin/reservations (SF-15)
+   * Paginated list of all reservations with filter by status, check-in date range, and search
+   */
+  async getAdminReservations(params: {
+    status?: string;
+    from?: string;
+    to?: string;
+    search?: string;
+    page?: number;
+    limit?: number;
+  }) {
+    const page = Math.max(1, Number(params.page) || 1);
+    const limit = Math.min(100, Math.max(1, Number(params.limit) || 10));
+    const skip = (page - 1) * limit;
+
+    const where: Prisma.ReservationWhereInput = {};
+
+    if (params.status && params.status !== 'All' && params.status !== 'ALL') {
+      const normalized =
+        params.status === 'Checked-in' || params.status === 'Checked_in'
+          ? 'Checked_in'
+          : params.status;
+
+      if (
+        ['Pending', 'Confirmed', 'Checked_in', 'Completed', 'Cancelled'].includes(
+          normalized
+        )
+      ) {
+        where.status = normalized as any;
+      }
+    } else {
+      // Default view ("Semua Reservasi Masuk") hides Cancelled reservations
+      where.status = { not: 'Cancelled' };
+    }
+
+    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+    if (params.from && dateRegex.test(params.from)) {
+      where.checkInDate = {
+        ...(where.checkInDate as Prisma.DateTimeFilter),
+        gte: new Date(`${params.from}T00:00:00.000Z`),
+      };
+    }
+    if (params.to && dateRegex.test(params.to)) {
+      where.checkInDate = {
+        ...(where.checkInDate as Prisma.DateTimeFilter),
+        lte: new Date(`${params.to}T00:00:00.000Z`),
+      };
+    }
+
+    if (params.search && params.search.trim() !== '') {
+      const q = params.search.trim();
+      where.OR = [
+        { bookingCode: { contains: q } },
+        { user: { name: { contains: q } } },
+        { user: { email: { contains: q } } },
+        { room: { name: { contains: q } } },
+      ];
+    }
+
+    const todayWib = this.getTodayWib();
+    const todayDate = new Date(`${todayWib}T00:00:00.000Z`);
+
+    const [
+      items,
+      totalFiltered,
+      statusGroups,
+      arrivingTodayCount,
+    ] = await Promise.all([
+      prisma.reservation.findMany({
+        where,
+        include: {
+          user: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              phoneNumber: true,
+            },
+          },
+          room: {
+            include: {
+              images: {
+                orderBy: { isPrimary: 'desc' },
+              },
+              facilities: {
+                include: { facility: true },
+              },
+            },
+          },
+          payment: true,
+          units: { include: { unit: true } },
+        },
+        orderBy: [{ createdAt: 'desc' }],
+        skip,
+        take: limit,
+      }),
+      prisma.reservation.count({ where }),
+      prisma.reservation.groupBy({
+        by: ['status'],
+        _count: { _all: true },
+      }),
+      prisma.reservation.count({
+        where: {
+          status: 'Confirmed',
+          checkInDate: todayDate,
+        },
+      }),
+    ]);
+
+    const countsMap: Record<string, number> = {
+      Pending: 0,
+      Confirmed: 0,
+      Checked_in: 0,
+      Completed: 0,
+      Cancelled: 0,
+    };
+
+    for (const grp of statusGroups) {
+      countsMap[grp.status] = grp._count._all;
+    }
+
+    const totalActiveAndCompleted =
+      countsMap.Pending +
+      countsMap.Confirmed +
+      countsMap.Checked_in +
+      countsMap.Completed;
+
+    return {
+      items: items.map((r) => ({
+        ...this.formatReservation(r, true),
+        eligibility: this.evaluateCheckInEligibility(r),
+      })),
+      pagination: {
+        page,
+        limit,
+        total: totalFiltered,
+        totalPages: Math.max(1, Math.ceil(totalFiltered / limit)),
+      },
+      summary: {
+        total: totalActiveAndCompleted,
+        pending: countsMap.Pending,
+        confirmed: countsMap.Confirmed,
+        checkedIn: countsMap.Checked_in,
+        completed: countsMap.Completed,
+        cancelled: countsMap.Cancelled,
+        arrivingToday: arrivingTodayCount,
+      },
+      todayWib,
+    };
+  }
+
+  /**
+   * GET /api/admin/reservations/:id (SF-15)
+   * Admin detail view for any reservation
+   */
+  async getAdminReservationById(idOrCode: string) {
+    const isNumericId = /^\d+$/.test(idOrCode);
+
+    const reservation = await prisma.reservation.findFirst({
+      where: isNumericId
+        ? { id: BigInt(idOrCode) }
+        : { bookingCode: idOrCode.trim().toUpperCase() },
+      include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            phoneNumber: true,
+          },
+        },
+        room: {
+          include: {
+            images: {
+              orderBy: { isPrimary: 'desc' },
+            },
+            facilities: {
+              include: { facility: true },
+            },
+          },
+        },
+        payment: true,
+        units: { include: { unit: true } },
+      },
+    });
+
+    if (!reservation) {
+      throw new Error('RESERVATION_NOT_FOUND');
+    }
+
+    return {
+      ...this.formatReservation(reservation, true),
+      eligibility: this.evaluateCheckInEligibility(reservation),
+    };
+  }
+
+  /**
+   * GET /api/admin/checkin/lookup?code= (SF-16, BR-10)
+   * Lookup reservation by booking code for Check-in / Check-out verification
+   */
+  async lookupCheckInByCode(code: string) {
+    const cleanCode = code.trim().toUpperCase();
+    if (!cleanCode) {
+      throw new Error('BOOKING_CODE_REQUIRED');
+    }
+
+    const reservation = await prisma.reservation.findFirst({
+      where: { bookingCode: cleanCode },
+      include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            phoneNumber: true,
+          },
+        },
+        room: {
+          include: {
+            images: {
+              orderBy: { isPrimary: 'desc' },
+            },
+            facilities: {
+              include: { facility: true },
+            },
+          },
+        },
+        payment: true,
+        units: { include: { unit: true } },
+      },
+    });
+
+    if (!reservation) {
+      throw new Error('RESERVATION_NOT_FOUND');
+    }
+
+    return {
+      reservation: this.formatReservation(reservation, true),
+      eligibility: this.evaluateCheckInEligibility(reservation),
+    };
+  }
+
+  /**
+   * POST /api/admin/reservations/:id/check-in (SF-16, BR-10)
+   * Process guest check-in: transitions Confirmed -> Checked-in
+   */
+  async checkInReservation(id: string) {
+    if (!/^\d+$/.test(id)) {
+      throw new Error('RESERVATION_NOT_FOUND');
+    }
+
+    const reservation = await prisma.reservation.findUnique({
+      where: { id: BigInt(id) },
+      include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            phoneNumber: true,
+          },
+        },
+        room: {
+          include: {
+            images: {
+              orderBy: { isPrimary: 'desc' },
+            },
+            facilities: {
+              include: { facility: true },
+            },
+          },
+        },
+        payment: true,
+        units: { include: { unit: true } },
+      },
+    });
+
+    if (!reservation) {
+      throw new Error('RESERVATION_NOT_FOUND');
+    }
+
+    const eligibility = this.evaluateCheckInEligibility(reservation);
+    if (!eligibility.canCheckIn) {
+      throw new Error(
+        `CHECKIN_NOT_ELIGIBLE:${eligibility.code}:${eligibility.reason}`
+      );
+    }
+
+    const updated = await prisma.reservation.update({
+      where: { id: reservation.id },
+      data: { status: 'Checked_in' },
+      include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            phoneNumber: true,
+          },
+        },
+        room: {
+          include: {
+            images: {
+              orderBy: { isPrimary: 'desc' },
+            },
+            facilities: {
+              include: { facility: true },
+            },
+          },
+        },
+        payment: true,
+        units: { include: { unit: true } },
+      },
+    });
+
+    return {
+      reservation: this.formatReservation(updated, true),
+      eligibility: this.evaluateCheckInEligibility(updated),
+    };
+  }
+
+  /**
+   * POST /api/admin/reservations/:id/check-out (SF-16, BR-11)
+   * Process guest check-out: transitions Checked-in -> Completed without changing room/unit status
+   */
+  async checkOutReservation(id: string) {
+    if (!/^\d+$/.test(id)) {
+      throw new Error('RESERVATION_NOT_FOUND');
+    }
+
+    const reservation = await prisma.reservation.findUnique({
+      where: { id: BigInt(id) },
+      include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            phoneNumber: true,
+          },
+        },
+        room: {
+          include: {
+            images: {
+              orderBy: { isPrimary: 'desc' },
+            },
+            facilities: {
+              include: { facility: true },
+            },
+          },
+        },
+        payment: true,
+        units: { include: { unit: true } },
+      },
+    });
+
+    if (!reservation) {
+      throw new Error('RESERVATION_NOT_FOUND');
+    }
+
+    if (reservation.status !== 'Checked_in') {
+      throw new Error(
+        `CHECKOUT_NOT_ELIGIBLE:Check-out hanya dapat dilakukan untuk tamu yang sedang menginap / berstatus Checked-in (Status saat ini: ${reservation.status}).`
+      );
+    }
+
+    const updated = await prisma.reservation.update({
+      where: { id: reservation.id },
+      data: { status: 'Completed' },
+      include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            phoneNumber: true,
+          },
+        },
+        room: {
+          include: {
+            images: {
+              orderBy: { isPrimary: 'desc' },
+            },
+            facilities: {
+              include: { facility: true },
+            },
+          },
+        },
+        payment: true,
+        units: { include: { unit: true } },
+      },
+    });
+
+    return {
+      reservation: this.formatReservation(updated, true),
+      eligibility: this.evaluateCheckInEligibility(updated),
+    };
   }
 }
 

@@ -188,8 +188,8 @@ export class InvoiceService {
           .fillAndStroke('#FFFFFF', '#E5E0D8');
 
         doc.fillColor('#6B7280').font('Helvetica').fontSize(9);
-        doc.text('CHECK-IN (MULAI 14:00 WIB)', 66, stayTop + 30);
-        doc.text('CHECK-OUT (MAKS. 12:00 WIB)', 245, stayTop + 30);
+        doc.text('CHECK-IN (MULAI 13:00 WIB)', 66, stayTop + 30);
+        doc.text('CHECK-OUT (11:00 - 12:00 WIB)', 245, stayTop + 30);
         doc.text('DURASI & TAMU', 425, stayTop + 30);
 
         doc.fillColor('#111827').font('Helvetica-Bold').fontSize(10);
@@ -276,7 +276,7 @@ export class InvoiceService {
           .font('Helvetica')
           .fontSize(9)
           .text(
-            `1. Tunjukkan Kode Booking (${reservation.bookingCode}) atau dokumen Invoice ini kepada petugas resepsionis saat tiba.\n2. Waktu Check-in dimulai pukul 14:00 WIB pada tanggal check-in yang tertera.`,
+            `1. Tunjukkan Kode Booking (${reservation.bookingCode}) atau dokumen Invoice ini kepada petugas resepsionis saat tiba.\n2. Waktu Check-in dimulai pukul 13:00 WIB dan waktu Check-out pukul 11:00 - 12:00 WIB sesuai tanggal yang tertera.`,
             66,
             footerTop + 26,
             { lineGap: 3 }

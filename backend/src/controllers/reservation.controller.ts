@@ -326,6 +326,150 @@ export class ReservationController {
       sendError(res, 'Gagal membatalkan pesanan', 500);
     }
   }
+
+  /**
+   * GET /api/admin/reservations (SF-15)
+   * Admin monitoring of all reservations with filter & pagination
+   */
+  async getAdminReservations(req: Request, res: Response): Promise<void> {
+    try {
+      const status = typeof req.query.status === 'string' ? req.query.status : undefined;
+      const from = typeof req.query.from === 'string' ? req.query.from : undefined;
+      const to = typeof req.query.to === 'string' ? req.query.to : undefined;
+      const search = typeof req.query.search === 'string' ? req.query.search : undefined;
+      const page = req.query.page ? Number(req.query.page) : 1;
+      const limit = req.query.limit ? Number(req.query.limit) : 10;
+
+      const result = await reservationService.getAdminReservations({
+        status,
+        from,
+        to,
+        search,
+        page,
+        limit,
+      });
+
+      sendSuccess(res, 'Daftar seluruh reservasi berhasil diambil', result);
+    } catch (error) {
+      console.error('Error fetching admin reservations:', error);
+      sendError(res, 'Gagal mengambil daftar reservasi', 500);
+    }
+  }
+
+  /**
+   * GET /api/admin/reservations/:id (SF-15)
+   * Admin reservation detail
+   */
+  async getAdminReservationById(req: Request, res: Response): Promise<void> {
+    try {
+      const { id } = req.params;
+      const result = await reservationService.getAdminReservationById(id);
+      sendSuccess(res, 'Detail reservasi berhasil diambil', result);
+    } catch (error: any) {
+      const msg = error?.message || '';
+      if (msg === 'RESERVATION_NOT_FOUND') {
+        sendError(res, 'Data reservasi tidak ditemukan', 404);
+        return;
+      }
+      console.error('Error fetching admin reservation detail:', error);
+      sendError(res, 'Gagal mengambil detail reservasi', 500);
+    }
+  }
+
+  /**
+   * GET /api/admin/checkin/lookup?code= (SF-16, BR-10)
+   * Lookup reservation by booking code for Check-in / Check-out verification
+   */
+  async lookupCheckIn(req: Request, res: Response): Promise<void> {
+    try {
+      const code = typeof req.query.code === 'string' ? req.query.code.trim() : '';
+      if (!code) {
+        sendError(res, 'Kode booking wajib diisi untuk verifikasi Check-in', 400, {
+          code: 'Kode booking wajib diisi (contoh: HSR-20261112-XXXX)',
+        });
+        return;
+      }
+
+      const result = await reservationService.lookupCheckInByCode(code);
+      sendSuccess(res, 'Data reservasi ditemukan', result);
+    } catch (error: any) {
+      const msg = error?.message || '';
+      if (msg === 'BOOKING_CODE_REQUIRED') {
+        sendError(res, 'Kode booking wajib diisi', 400);
+        return;
+      }
+      if (msg === 'RESERVATION_NOT_FOUND') {
+        sendError(
+          res,
+          'Reservasi dengan kode booking tersebut tidak ditemukan. Pastikan kode tiket sesuai.',
+          404
+        );
+        return;
+      }
+      console.error('Error looking up check-in:', error);
+      sendError(res, 'Gagal memverifikasi kode booking', 500);
+    }
+  }
+
+  /**
+   * POST /api/admin/reservations/:id/check-in (SF-16, BR-10)
+   * Process guest Check-in (Confirmed -> Checked-in)
+   */
+  async checkInReservation(req: Request, res: Response): Promise<void> {
+    try {
+      const { id } = req.params;
+      const result = await reservationService.checkInReservation(id);
+      sendSuccess(
+        res,
+        `Check-in berhasil dikonfirmasi untuk kode booking ${result.reservation.bookingCode}. Tamu kini berstatus Checked-in.`,
+        result
+      );
+    } catch (error: any) {
+      const msg = error?.message || '';
+      if (msg === 'RESERVATION_NOT_FOUND') {
+        sendError(res, 'Data reservasi tidak ditemukan', 404);
+        return;
+      }
+      if (msg.startsWith('CHECKIN_NOT_ELIGIBLE:')) {
+        const parts = msg.split(':');
+        const code = parts[1] || 'INELIGIBLE';
+        const reason = parts.slice(2).join(':') || 'Reservasi tidak memenuhi syarat Check-in (BR-10)';
+        sendError(res, reason, 400, { code, reason });
+        return;
+      }
+      console.error('Error processing check-in:', error);
+      sendError(res, 'Gagal memproses Check-in tamu', 500);
+    }
+  }
+
+  /**
+   * POST /api/admin/reservations/:id/check-out (SF-16, BR-11)
+   * Process guest Check-out (Checked-in -> Completed)
+   */
+  async checkOutReservation(req: Request, res: Response): Promise<void> {
+    try {
+      const { id } = req.params;
+      const result = await reservationService.checkOutReservation(id);
+      sendSuccess(
+        res,
+        `Check-out berhasil diproses untuk kode booking ${result.reservation.bookingCode}. Reservasi kini berstatus Completed.`,
+        result
+      );
+    } catch (error: any) {
+      const msg = error?.message || '';
+      if (msg === 'RESERVATION_NOT_FOUND') {
+        sendError(res, 'Data reservasi tidak ditemukan', 404);
+        return;
+      }
+      if (msg.startsWith('CHECKOUT_NOT_ELIGIBLE:')) {
+        const reason = msg.replace('CHECKOUT_NOT_ELIGIBLE:', '');
+        sendError(res, reason, 400, { reason });
+        return;
+      }
+      console.error('Error processing check-out:', error);
+      sendError(res, 'Gagal memproses Check-out tamu', 500);
+    }
+  }
 }
 
 export default new ReservationController();
