@@ -4,6 +4,8 @@ import Login from '../pages/auth/Login';
 import Register from '../pages/auth/Register';
 import Home from '../pages/public/Home';
 import Rooms from '../pages/public/Rooms';
+import RoomDetail from '../pages/public/RoomDetail';
+import Booking from '../pages/guest/Booking';
 import { ProtectedRoute } from './ProtectedRoute';
 import AdminDashboard from '../pages/admin/Dashboard';
 import AdminRooms from '../pages/admin/Rooms';
@@ -20,10 +22,17 @@ export const AppRoutes = () => {
         {/* Public Routes */}
         <Route path="/" element={<Home />} />
         <Route path="/rooms" element={<Rooms />} />
+        <Route path="/search" element={<Rooms />} />
+        <Route path="/rooms/:id" element={<RoomDetail />} />
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
 
         {/* Guest Routes */}
+        <Route path="/booking/:roomId" element={
+          <ProtectedRoute roles={['Guest', 'Admin']}>
+            <Booking />
+          </ProtectedRoute>
+        } />
         <Route path="/reservations" element={
           <ProtectedRoute roles={['Guest', 'Admin']}>
             <GuestReservations />
