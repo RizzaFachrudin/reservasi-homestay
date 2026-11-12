@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   Search, CalendarCheck, CreditCard, KeyRound,
-  Users, ArrowRight, Star, BedDouble,
+  Users, ArrowRight, Star, BedDouble, AlertCircle, RefreshCw,
 } from 'lucide-react';
 import GuestLayout from '../../layouts/GuestLayout';
 import { roomService, Room } from '../../services/room.service';
@@ -37,25 +37,29 @@ const Home: React.FC = () => {
   const [featuredRooms, setFeaturedRooms] = useState<Room[]>([]);
   const [facilities, setFacilities] = useState<Facility[]>([]);
   const [loadingData, setLoadingData] = useState(true);
+  const [fetchError, setFetchError] = useState('');
 
   const today = new Date().toISOString().split('T')[0];
 
-  useEffect(() => {
-    const loadHomeData = async () => {
-      try {
-        const [rooms, facs] = await Promise.all([
-          roomService.getPublicRooms(true),
-          facilityService.getPublicFacilities(),
-        ]);
-        setFeaturedRooms(rooms);
-        setFacilities(facs);
-      } catch (err) {
-        console.error('Error fetching home data:', err);
-      } finally {
-        setLoadingData(false);
-      }
-    };
+  const loadHomeData = async () => {
+    setLoadingData(true);
+    setFetchError('');
+    try {
+      const [rooms, facs] = await Promise.all([
+        roomService.getPublicRooms(true),
+        facilityService.getPublicFacilities(),
+      ]);
+      setFeaturedRooms(rooms);
+      setFacilities(facs);
+    } catch (err) {
+      console.error('Error fetching home data:', err);
+      setFetchError('Gagal memuat data kamar dan fasilitas. Silakan coba lagi.');
+    } finally {
+      setLoadingData(false);
+    }
+  };
 
+  useEffect(() => {
     loadHomeData();
   }, []);
 
@@ -160,6 +164,17 @@ const Home: React.FC = () => {
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-sage-dark mx-auto mb-2" />
             <p className="text-xs">Memuat kamar unggulan...</p>
           </div>
+        ) : fetchError ? (
+          <div className="py-12 px-6 text-center bg-white rounded-3xl border border-red-100">
+            <AlertCircle size={36} className="mx-auto mb-3 text-red-500" />
+            <p className="text-sm font-medium text-stone-700 mb-4">{fetchError}</p>
+            <button
+              onClick={loadHomeData}
+              className="inline-flex items-center gap-2 bg-sage-dark hover:bg-wood text-white text-sm font-semibold px-5 py-2.5 rounded-xl transition"
+            >
+              <RefreshCw size={15} /> Muat Ulang
+            </button>
+          </div>
         ) : featuredRooms.length === 0 ? (
           <div className="py-12 text-center text-stone-400 bg-white rounded-3xl border border-stone-100">
             <BedDouble size={36} className="mx-auto mb-2 text-stone-300" />
@@ -173,7 +188,7 @@ const Home: React.FC = () => {
               return (
                 <Link
                   key={room.id}
-                  to="/rooms"
+                  to={`/rooms/${room.id}`}
                   className="group bg-white rounded-3xl overflow-hidden shadow-sm hover:shadow-xl transition"
                 >
                   <div className="aspect-[4/3] overflow-hidden bg-sage/20">
@@ -262,7 +277,7 @@ const Home: React.FC = () => {
           {gallery.map((src, i) => (
             <div
               key={src}
-              className={`overflow-hidden rounded-2xl bg-sage/20 ${i === 0 ? 'md:row-span-2' : ''} aspect-square md:aspect-auto md:h-full min-h-[180px]`}
+              className="overflow-hidden rounded-2xl bg-sage/20 aspect-[4/3] shadow-sm"
             >
               <img src={src} alt={`Suasana homestay ${i + 1}`} loading="lazy"
                 className="w-full h-full object-cover hover:scale-105 transition duration-500" />
