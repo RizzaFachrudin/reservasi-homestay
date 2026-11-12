@@ -25,6 +25,11 @@ router.post('/rooms', roomController.create);
 router.put('/rooms/:id', roomController.update);
 router.delete('/rooms/:id', roomController.delete);
 
+// Room Units per type (multi-unit stock)
+router.post('/rooms/:id/units', roomController.addUnit);
+router.patch('/rooms/:id/units/:unitId', roomController.updateUnit);
+router.delete('/rooms/:id/units/:unitId', roomController.deleteUnit);
+
 // Room Gallery Images (SF-14)
 router.post('/rooms/:id/images', upload.array('images', 10), roomController.uploadImages);
 router.patch('/images/:id/primary', roomController.setPrimaryImage);

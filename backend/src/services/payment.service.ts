@@ -272,6 +272,7 @@ export class PaymentService {
       )
     );
     const pricePerNight = Math.round(Number(reservation.room.pricePerNight));
+    const roomCount = Math.max(1, reservation.roomCount || 1);
 
     const snap = this.getSnapClient();
     const parameter = {
@@ -283,8 +284,8 @@ export class PaymentService {
         {
           id: `ROOM-${reservation.roomId.toString()}`,
           price: pricePerNight,
-          quantity: nights,
-          name: `${reservation.room.name} (${nights} Malam)`.substring(0, 50),
+          quantity: nights * roomCount,
+          name: `${reservation.room.name} (${roomCount} Kamar x ${nights} Malam)`.substring(0, 50),
         },
       ],
       customer_details: {

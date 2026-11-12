@@ -48,6 +48,12 @@ export class ReservationController {
         errors.guest_count = 'Jumlah tamu minimal 1 orang';
       }
 
+      const rawRoomCount = req.body.room_count ?? req.body.roomCount ?? req.body.rooms ?? 1;
+      const roomCount = Number(rawRoomCount);
+      if (Number.isNaN(roomCount) || !Number.isInteger(roomCount) || roomCount < 1 || roomCount > 100) {
+        errors.room_count = 'Jumlah kamar harus angka bulat minimal 1';
+      }
+
       if (Object.keys(errors).length > 0) {
         sendError(res, 'Data pemesanan tidak valid', 400, errors);
         return;
@@ -87,6 +93,7 @@ export class ReservationController {
         checkInStr,
         checkOutStr,
         guestCount,
+        roomCount,
       });
 
       sendSuccess(
@@ -107,9 +114,20 @@ export class ReservationController {
         const maxCap = msg.split(':')[1] || '';
         sendError(
           res,
-          `Jumlah tamu melebihi kapasitas maksimal kamar (${maxCap} orang)`,
+          `Jumlah tamu melebihi kapasitas maksimal untuk jumlah kamar yang dipilih (${maxCap} orang)`,
           400,
-          { guest_count: `Maksimal ${maxCap} tamu untuk kamar ini` }
+          { guest_count: `Maksimal ${maxCap} tamu untuk pilihan kamar ini` }
+        );
+        return;
+      }
+
+      if (msg.startsWith('INSUFFICIENT_UNITS:')) {
+        const left = msg.split(':')[1] || '0';
+        sendError(
+          res,
+          `Maaf, sisa kamar pada tanggal yang dipilih hanya ${left} unit. Kurangi jumlah kamar atau pilih tanggal lain.`,
+          409,
+          { room_count: `Sisa kamar tersedia: ${left}` }
         );
         return;
       }

@@ -8,6 +8,7 @@ export interface CreateReservationInput {
   checkInStr: string;
   checkOutStr: string;
   guestCount: number;
+  roomCount?: number;
 }
 
 interface LockedRoomRow {
@@ -63,6 +64,17 @@ export class ReservationService {
       checkOutDate: checkOutStr,
       nights,
       guestCount: res.guestCount,
+      roomCount: res.roomCount ?? 1,
+      units: isBookingCodeRevealed
+        ? (res.units || [])
+            .map((ru: any) => ({
+              id: ru.unit.id.toString(),
+              unitNumber: ru.unit.unitNumber,
+            }))
+            .sort((a: any, b: any) =>
+              String(a.unitNumber).localeCompare(String(b.unitNumber), undefined, { numeric: true })
+            )
+        : [],
       totalPrice: Number(res.totalPrice),
       status: res.status === 'Checked_in' ? 'Checked-in' : res.status,
       createdAt: createdAtDate.toISOString(),
@@ -124,6 +136,7 @@ export class ReservationService {
    */
   async createReservation(input: CreateReservationInput) {
     const { userId, roomId, checkInStr, checkOutStr, guestCount } = input;
+    const roomCount = input.roomCount && input.roomCount > 0 ? input.roomCount : 1;
 
     if (!/^\d+$/.test(roomId)) {
       throw new Error('ROOM_NOT_FOUND');
@@ -160,36 +173,44 @@ export class ReservationService {
           throw new Error('ROOM_NOT_AVAILABLE');
         }
 
-        // 3. BR-03: Validate guest count against room capacity
-        if (guestCount > Number(roomRow.capacity)) {
-          throw new Error(`CAPACITY_EXCEEDED:${roomRow.capacity}`);
+        // 3. BR-03: Validate guest count against total capacity (capacity per room x rooms booked)
+        const totalCapacity = Number(roomRow.capacity) * roomCount;
+        if (guestCount > totalCapacity) {
+          throw new Error(`CAPACITY_EXCEEDED:${totalCapacity}`);
         }
 
-        // 4. BR-04 & BR-07: Re-check overlapping active reservations inside the locked transaction
+        // 4. BR-04 & BR-07: Pick free physical units inside the locked transaction.
+        // A unit is free when it is Available and no active reservation overlapping the dates holds it.
         // Overlap formula: existing.check_in_date < new.check_out_date AND existing.check_out_date > new.check_in_date
-        const overlapping = await tx.reservation.findFirst({
+        const freeUnits = await tx.roomUnit.findMany({
           where: {
             roomId: BigInt(roomId),
-            status: {
-              in: ['Pending', 'Confirmed', 'Checked_in'],
-            },
-            checkInDate: {
-              lt: checkOutDate,
-            },
-            checkOutDate: {
-              gt: checkInDate,
+            status: 'Available',
+            reservations: {
+              none: {
+                reservation: {
+                  status: { in: ['Pending', 'Confirmed', 'Checked_in'] },
+                  checkInDate: { lt: checkOutDate },
+                  checkOutDate: { gt: checkInDate },
+                },
+              },
             },
           },
-          select: { id: true, bookingCode: true },
+          orderBy: { unitNumber: 'asc' },
+          select: { id: true },
         });
 
-        if (overlapping) {
+        if (freeUnits.length === 0) {
           throw new Error('ROOM_ALREADY_BOOKED');
         }
+        if (freeUnits.length < roomCount) {
+          throw new Error(`INSUFFICIENT_UNITS:${freeUnits.length}`);
+        }
+        const assignedUnits = freeUnits.slice(0, roomCount);
 
-        // 5. BR-05: Calculate total_price on the server (price_per_night * nights)
+        // 5. BR-05: Calculate total_price on the server (price_per_night * nights * rooms)
         const pricePerNight = Number(roomRow.price_per_night);
-        const totalPrice = pricePerNight * nights;
+        const totalPrice = pricePerNight * nights * roomCount;
 
         // 6. BR-06: Generate unique booking code (HSR-YYYYMMDD-XXXX)
         let bookingCode = generateBookingCode();
@@ -211,8 +232,12 @@ export class ReservationService {
             checkInDate,
             checkOutDate,
             guestCount,
+            roomCount,
             totalPrice,
             status: 'Pending',
+            units: {
+              create: assignedUnits.map((u) => ({ unitId: u.id })),
+            },
             payment: {
               create: {
                 amount: totalPrice,
@@ -240,6 +265,7 @@ export class ReservationService {
               },
             },
             payment: true,
+            units: { include: { unit: true } },
           },
         });
 
@@ -274,6 +300,7 @@ export class ReservationService {
           },
         },
         payment: true,
+        units: { include: { unit: true } },
       },
       orderBy: {
         createdAt: 'desc',
@@ -313,6 +340,7 @@ export class ReservationService {
           },
         },
         payment: true,
+        units: { include: { unit: true } },
       },
     });
 
@@ -345,6 +373,7 @@ export class ReservationService {
       where: { id: BigInt(id) },
       include: {
         payment: true,
+        units: { include: { unit: true } },
       },
     });
 
@@ -400,6 +429,7 @@ export class ReservationService {
             },
           },
           payment: true,
+          units: { include: { unit: true } },
         },
       });
     });

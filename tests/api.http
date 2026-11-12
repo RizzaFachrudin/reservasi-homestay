@@ -54,7 +54,7 @@ GET {{baseUrl}}/rooms?featured=true
 GET {{baseUrl}}/rooms/1
 
 ### 9b. Public - Search Available Rooms (M3 - SF-4, BR-03, BR-04, BR-05)
-GET {{baseUrl}}/rooms/available?check_in=2026-12-01&check_out=2026-12-04&guests=2
+GET {{baseUrl}}/rooms/available?check_in=2026-12-01&check_out=2026-12-04&guests=2&rooms=1
 
 ### 9c. Public - Get Room Availability Calendar by Month (M3 - SF-4, BR-18)
 GET {{baseUrl}}/rooms/1/availability?month=2026-12
@@ -88,10 +88,29 @@ Content-Type: application/json
     "pricePerNight": 750000,
     "capacity": 3,
     "status": "Available",
+    "totalUnits": 3,
     "facilityIds": [1, 2]
 }
 
-### 14. Guest - Create Reservation with Row Lock (M4 - SF-6, BR-07)
+### 13b. Admin - Add Physical Unit to Room Type
+POST {{baseUrl}}/admin/rooms/1/units
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+    "unitNumber": "303"
+}
+
+### 13c. Admin - Update Room Unit Status (Available <-> Maintenance)
+PATCH {{baseUrl}}/admin/rooms/1/units/1
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+    "status": "Maintenance"
+}
+
+### 14. Guest - Create Reservation with Row Lock & Auto-Assigned Units (M4 - SF-6, BR-07)
 # @name createReservation
 POST {{baseUrl}}/reservations
 Authorization: Bearer {{token}}
@@ -101,7 +120,8 @@ Content-Type: application/json
     "room_id": 1,
     "check_in_date": "2026-12-20",
     "check_out_date": "2026-12-22",
-    "guest_count": 2
+    "guest_count": 2,
+    "room_count": 1
 }
 
 ### 15. Guest - Get My Reservations (M4/M6 - SF-8)

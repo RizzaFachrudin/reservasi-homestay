@@ -13,6 +13,17 @@ const createRoomSchema = z.object({
   capacity: z.coerce.number().int().min(1, 'Kapasitas minimal 1 orang'),
   status: z.enum(['Available', 'Maintenance']).optional(),
   facilityIds: z.array(z.union([z.string(), z.number()])).optional(),
+  totalUnits: z.coerce.number().int().min(1, 'Jumlah kamar minimal 1').max(100, 'Jumlah kamar maksimal 100').optional(),
+  unitPrefix: z.string().max(10, 'Prefix nomor unit maksimal 10 karakter').optional(),
+});
+
+const createUnitSchema = z.object({
+  unitNumber: z.string().trim().min(1, 'Nomor unit wajib diisi').max(30, 'Nomor unit maksimal 30 karakter'),
+});
+
+const updateUnitSchema = z.object({
+  unitNumber: z.string().trim().min(1, 'Nomor unit wajib diisi').max(30, 'Nomor unit maksimal 30 karakter').optional(),
+  status: z.enum(['Available', 'Maintenance']).optional(),
 });
 
 const updateRoomSchema = z.object({
@@ -91,7 +102,17 @@ export class RoomController {
         return;
       }
 
-      const rooms = await roomService.getAvailableRooms(checkIn, checkOut, guestsParam);
+      const roomsParam = req.query.rooms !== undefined ? Number(req.query.rooms) : 1;
+      if (!Number.isInteger(roomsParam) || roomsParam < 1 || roomsParam > 100) {
+        res.status(400).json(
+          formatErrorResponse('Jumlah kamar tidak valid', {
+            rooms: 'Jumlah kamar harus angka bulat minimal 1',
+          })
+        );
+        return;
+      }
+
+      const rooms = await roomService.getAvailableRooms(checkIn, checkOut, guestsParam, roomsParam);
       res.status(200).json(formatSuccessResponse(rooms, 'Daftar kamar tersedia berhasil diambil'));
     } catch (error) {
       console.error('Error searching available rooms:', error);
@@ -227,6 +248,68 @@ export class RoomController {
       res.status(500).json(formatErrorResponse('Gagal menghapus kamar'));
     }
   }
+
+  private handleUnitError(error: unknown, res: Response, fallback: string): void {
+    if (error instanceof Error) {
+      const map: Record<string, [number, string]> = {
+        ROOM_NOT_FOUND: [404, 'Tipe kamar tidak ditemukan'],
+        UNIT_NOT_FOUND: [404, 'Unit kamar tidak ditemukan'],
+        UNIT_NUMBER_EXISTS: [409, 'Nomor unit sudah dipakai pada tipe kamar ini'],
+        UNIT_HAS_ACTIVE_RESERVATIONS: [409, 'Unit tidak dapat dihapus karena masih terikat reservasi aktif'],
+        UNIT_HAS_HISTORY: [
+          409,
+          'Unit memiliki riwayat reservasi sehingga tidak dapat dihapus. Ubah statusnya menjadi Maintenance.',
+        ],
+      };
+      const hit = map[error.message];
+      if (hit) {
+        res.status(hit[0]).json(formatErrorResponse(hit[1]));
+        return;
+      }
+    }
+    console.error(fallback, error);
+    res.status(500).json(formatErrorResponse(fallback));
+  }
+
+  // Admin: Add unit to a room type
+  addUnit = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const validation = validateRequest(createUnitSchema, req.body);
+      if (!validation.success) {
+        res.status(422).json(formatErrorResponse('Validasi gagal', validation.errors));
+        return;
+      }
+      const result = await roomService.addUnit(req.params.id, (validation.data as any).unitNumber);
+      res.status(201).json(formatSuccessResponse(result, 'Unit kamar berhasil ditambahkan'));
+    } catch (error) {
+      this.handleUnitError(error, res, 'Gagal menambah unit kamar');
+    }
+  };
+
+  // Admin: Update unit (number / status)
+  updateUnit = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const validation = validateRequest(updateUnitSchema, req.body);
+      if (!validation.success) {
+        res.status(422).json(formatErrorResponse('Validasi gagal', validation.errors));
+        return;
+      }
+      const result = await roomService.updateUnit(req.params.id, req.params.unitId, validation.data as any);
+      res.status(200).json(formatSuccessResponse(result, 'Unit kamar berhasil diperbarui'));
+    } catch (error) {
+      this.handleUnitError(error, res, 'Gagal memperbarui unit kamar');
+    }
+  };
+
+  // Admin: Delete unit
+  deleteUnit = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const result = await roomService.deleteUnit(req.params.id, req.params.unitId);
+      res.status(200).json(formatSuccessResponse(result, 'Unit kamar berhasil dihapus'));
+    } catch (error) {
+      this.handleUnitError(error, res, 'Gagal menghapus unit kamar');
+    }
+  };
 
   // Admin: Upload multiple room images (SF-14 & BR-14)
   async uploadImages(req: Request, res: Response): Promise<void> {

@@ -45,6 +45,7 @@ export class InvoiceService {
         user: true,
         room: true, // BR-12: Soft-deleted rooms are still fetched via FK relation so room.name is preserved
         payment: true,
+        units: { include: { unit: true } },
       },
     });
 
@@ -75,6 +76,10 @@ export class InvoiceService {
 
     const pricePerNight = Number(reservation.room.pricePerNight);
     const totalPrice = Number(reservation.totalPrice);
+    const roomCount = Math.max(1, reservation.roomCount || 1);
+    const unitNumbers = reservation.units
+      .map((ru) => ru.unit.unitNumber)
+      .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
     const invoiceNumber = `INV/${reservation.bookingCode.replace('HSR-', '')}`;
     const filename = `Invoice-${reservation.bookingCode}.pdf`;
 
@@ -201,26 +206,27 @@ export class InvoiceService {
         doc.fillColor('#FFFFFF').font('Helvetica-Bold').fontSize(9.5);
         doc.text('DESKRIPSI KAMAR', 66, tableTop + 9);
         doc.text('HARGA / MALAM', 265, tableTop + 9, { width: 90, align: 'right' });
-        doc.text('DURASI', 365, tableTop + 9, { width: 65, align: 'center' });
+        doc.text('MALAM x KAMAR', 360, tableTop + 9, { width: 75, align: 'center' });
         doc.text('SUBTOTAL', 440, tableTop + 9, { width: 90, align: 'right' });
 
         // Table Row
         const rowTop = tableTop + 38;
         doc.fillColor('#111827').font('Helvetica-Bold').fontSize(10.5);
-        doc.text(reservation.room.name, 66, rowTop);
+        doc.text(`${reservation.room.name} - ${roomCount} Kamar`, 66, rowTop, { width: 190 });
         doc
           .fillColor('#6B7280')
           .font('Helvetica')
           .fontSize(8.5)
           .text(
-            `Kapasitas Maks. ${reservation.room.capacity} Tamu • Kode Booking: ${reservation.bookingCode}`,
+            `Unit: ${unitNumbers.length > 0 ? unitNumbers.join(', ') : '-'} | Kapasitas ${reservation.room.capacity} Tamu/kamar`,
             66,
-            rowTop + 15
+            rowTop + 15,
+            { width: 190 }
           );
 
         doc.fillColor('#111827').font('Helvetica').fontSize(10);
         doc.text(formatRupiah(pricePerNight), 265, rowTop + 4, { width: 90, align: 'right' });
-        doc.text(`${nights} Malam`, 365, rowTop + 4, { width: 65, align: 'center' });
+        doc.text(`${nights} x ${roomCount}`, 360, rowTop + 4, { width: 75, align: 'center' });
         doc
           .font('Helvetica-Bold')
           .text(formatRupiah(totalPrice), 440, rowTop + 4, { width: 90, align: 'right' });
