@@ -537,12 +537,20 @@
 | SF-14 | Payment Webhook Handler | ✅ DONE | `POST /api/payments/webhook` dengan verifikasi SHA-512 signature (BR-09) & transisi status idempoten (PRD §6.3) |
 | SF-15 | Auto-expire Pending Reservations | ✅ DONE | Cron job 1 menit (`expire-reservations.job.ts`) membatalkan reservasi `Pending` > 60 menit menjadi `Cancelled` + `Expire` (BR-08) |
 
-### Milestone 6 (M6): Check-in & Reporting ❌
+### Milestone 6 (M6): Riwayat Reservasi, Tiket Check-in, & Unduh Invoice PDF ✅
 
 | No | System Feature | Status | Keterangan |
 |----|----------------|--------|------------|
-| SF-16 | Check-in System (Admin) | ❌ NOT STARTED | Backend + Frontend belum |
-| SF-17 | Admin Dashboard & Reports | ❌ NOT STARTED | Backend + Frontend belum |
+| SF-08 | Riwayat Reservasi & Tiket Check-in Digital | ✅ DONE | Halaman `/reservations` (dengan filter tab status) & `/reservations/:id` (Tiket Check-in Digital aktif untuk `Confirmed`+) |
+| SF-09 | Unduh Invoice PDF (PDFKit) | ✅ DONE | `GET /api/reservations/:id/invoice` dengan otorisasi pemilik & syarat `Settlement` (BR-15, BR-12) |
+
+### Milestone 7 & 8 (M7–M8): Admin Monitoring, Check-in/Check-out, Dashboard & Laporan ❌
+
+| No | System Feature | Status | Keterangan |
+|----|----------------|--------|------------|
+| SF-15 | Kelola Reservasi Masuk (Admin) | ❌ NOT STARTED | Backend + Frontend belum |
+| SF-16 | Check-in & Check-out System (Admin) | ❌ NOT STARTED | Backend + Frontend belum |
+| SF-11 / SF-17 | Admin Dashboard Statistik & Laporan Bulanan | ❌ NOT STARTED | Backend + Frontend belum |
 
 ---
 
@@ -569,13 +577,14 @@
 - **Progress:** ~15% (auth + public pages saja)
 
 ### Overall Project Progress
-- **M1:** ✅ 100% (4/4 features done)
-- **M2:** ✅ 100% (3/3 features done)
-- **M3:** ✅ 100% (3/3 features done)
-- **M4:** ✅ 100% (2/2 features done)
-- **M5:** ✅ 100% (3/3 features done)
-- **M6:** ❌ 0% (0/2 features)
-- **Total:** 88.2% (15/17 features completed)
+- **M1:** ✅ 100% (SF-1, SF-2, SF-10 done)
+- **M2:** ✅ 100% (SF-12, SF-13, SF-14 done)
+- **M3:** ✅ 100% (SF-3, SF-4, SF-5 done)
+- **M4:** ✅ 100% (SF-6 done)
+- **M5:** ✅ 100% (SF-7 done)
+- **M6:** ✅ 100% (SF-8, SF-9 done)
+- **M7–M8:** ❌ 0% (SF-11, SF-15, SF-16, SF-17 remaining)
+- **Total:** 76.5% (13/17 PRD System Features completed)
 
 ---
 

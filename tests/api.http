@@ -112,6 +112,10 @@ Authorization: Bearer {{token}}
 GET {{baseUrl}}/reservations/1
 Authorization: Bearer {{token}}
 
+### 16b. Guest - Download PDF Invoice (M6 - SF-9, BR-15)
+GET {{baseUrl}}/reservations/1/invoice
+Authorization: Bearer {{token}}
+
 ### 17. Guest - Initiate / Reuse Midtrans Snap Payment (M5 - SF-7)
 POST {{baseUrl}}/reservations/1/pay
 Authorization: Bearer {{token}}
