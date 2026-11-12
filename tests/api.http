@@ -111,3 +111,25 @@ Authorization: Bearer {{token}}
 ### 16. Guest - Get Reservation Detail by ID (M4/M6 - SF-6, BR-15)
 GET {{baseUrl}}/reservations/1
 Authorization: Bearer {{token}}
+
+### 17. Guest - Initiate / Reuse Midtrans Snap Payment (M5 - SF-7)
+POST {{baseUrl}}/reservations/1/pay
+Authorization: Bearer {{token}}
+
+### 18. Guest - Sync Payment Status from Midtrans API (M5 - SF-7)
+POST {{baseUrl}}/reservations/1/sync
+Authorization: Bearer {{token}}
+
+### 19. Public - Midtrans Webhook Notification (M5 - SF-7, BR-09)
+POST {{baseUrl}}/payments/webhook
+Content-Type: application/json
+
+{
+    "order_id": "HSR-20261112-XXXX",
+    "status_code": "200",
+    "gross_amount": "1700000.00",
+    "signature_key": "sha512_signature_key_from_midtrans",
+    "transaction_status": "settlement",
+    "payment_type": "bank_transfer",
+    "transaction_id": "midtrans-sample-tx-id"
+}

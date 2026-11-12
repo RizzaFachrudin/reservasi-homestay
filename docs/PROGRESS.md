@@ -529,13 +529,13 @@
 | SF-06 | Pemesanan Kamar (Booking Engine & Row Lock) | ✅ DONE | `POST /api/reservations` dengan `SELECT ... FOR UPDATE` (BR-07), `booking_code` `HSR-YYYYMMDD-XXXX` (BR-06), transaksi DB otomatis dengan `payments` (`Pending`), halaman `/booking/:roomId` & `/payment/:reservationId` dengan countdown 60 menit (BR-08) |
 | SF-11 | View My Reservations & Detail Endpoint | ✅ DONE | Backend `GET /api/reservations/me` & `GET /api/reservations/:id` dengan otorisasi pemilik (BR-15) |
 
-### Milestone 5 (M5): Payment Integration ❌
+### Milestone 5 (M5): Payment Integration, Webhook, & Auto-Expire Job ✅
 
 | No | System Feature | Status | Keterangan |
 |----|----------------|--------|------------|
-| SF-13 | Payment with Midtrans | ❌ NOT STARTED | Backend + Frontend belum |
-| SF-14 | Payment Webhook Handler | ❌ NOT STARTED | Backend belum |
-| SF-15 | Auto-expire Pending Reservations | ❌ NOT STARTED | Cron job belum |
+| SF-13 | Payment with Midtrans Sandbox (Snap) | ✅ DONE | `POST /api/reservations/:id/pay` (reuse transaksi aktif) + Popup Snap & Redirect URL di `/payment/:reservationId` + polling sinkronisasi otomatis |
+| SF-14 | Payment Webhook Handler | ✅ DONE | `POST /api/payments/webhook` dengan verifikasi SHA-512 signature (BR-09) & transisi status idempoten (PRD §6.3) |
+| SF-15 | Auto-expire Pending Reservations | ✅ DONE | Cron job 1 menit (`expire-reservations.job.ts`) membatalkan reservasi `Pending` > 60 menit menjadi `Cancelled` + `Expire` (BR-08) |
 
 ### Milestone 6 (M6): Check-in & Reporting ❌
 
@@ -573,9 +573,9 @@
 - **M2:** ✅ 100% (3/3 features done)
 - **M3:** ✅ 100% (3/3 features done)
 - **M4:** ✅ 100% (2/2 features done)
-- **M5:** ❌ 0% (0/3 features)
+- **M5:** ✅ 100% (3/3 features done)
 - **M6:** ❌ 0% (0/2 features)
-- **Total:** 70.6% (12/17 features completed)
+- **Total:** 88.2% (15/17 features completed)
 
 ---
 
